@@ -8,29 +8,29 @@ Add-Type -AssemblyName System.Drawing
 $script:gui = New-Object System.Windows.Forms.Form
 $script:gui.Text = 'DonOriginal3DMusic3 Ver.1.0 | 配布ZIP作成'
 $script:gui.StartPosition = 'CenterScreen'
-$script:gui.Size = New-Object System.Drawing.Size(970,530)
-$script:gui.MinimumSize = New-Object System.Drawing.Size(780,440)
-$script:gui.Font = New-Object System.Drawing.Font('Yu Gothic UI',10)
-$script:gui.Padding = New-Object System.Windows.Forms.Padding(12)
+$script:gui.Size = [System.Drawing.Size]::new(970,530)
+$script:gui.MinimumSize = [System.Drawing.Size]::new(780,440)
+$script:gui.Font = [System.Drawing.Font]::new('Yu Gothic UI',10.0)
+$script:gui.Padding = [System.Windows.Forms.Padding]::new(12)
 
 $panel = New-Object System.Windows.Forms.TableLayoutPanel
 $panel.Dock = 'Fill'
 $panel.ColumnCount = 3
 $panel.RowCount = 7
-$panel.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Absolute,210))
-$panel.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Percent,100))
-$panel.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Absolute,120))
+$panel.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Absolute,210))
+$panel.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Percent,100))
+$panel.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Absolute,120))
 foreach($h in @(55,51,51,51,53,37)) {
-  $panel.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,$h))
+  $panel.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute,$h))
 }
-$panel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([Windows.Forms.SizeType]::Percent,100)))
+$panel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent,100)))
 $script:gui.Controls.Add($panel)
 
 $head = New-Object System.Windows.Forms.Label
 $head.Text = 'Ver.1.0のEXEとv1.48素材をまとめる（追加のGitHub Actions不要）'
 $head.Dock = 'Fill'
 $head.TextAlign = 'MiddleLeft'
-$head.Font = New-Object System.Drawing.Font('Yu Gothic UI',12,[Drawing.FontStyle]::Bold)
+$head.Font = [System.Drawing.Font]::new('Yu Gothic UI',12.0,[System.Drawing.FontStyle]::Bold)
 $panel.Controls.Add($head,0,0)
 $panel.SetColumnSpan($head,3)
 
@@ -43,13 +43,13 @@ function Add-PathPicker([int]$row,[string]$labelText,[bool]$isFolder,[string]$fi
 
   $field=New-Object System.Windows.Forms.TextBox
   $field.Dock='Fill'
-  $field.Margin=New-Object System.Windows.Forms.Padding(0,12,0,0)
+  $field.Margin=[System.Windows.Forms.Padding]::new(0,12,0,0)
   $panel.Controls.Add($field,1,$row)
 
   $browse=New-Object System.Windows.Forms.Button
   $browse.Text='参照...'
   $browse.Dock='Fill'
-  $browse.Margin=New-Object System.Windows.Forms.Padding(7,5,0,4)
+  $browse.Margin=[System.Windows.Forms.Padding]::new(7,5,0,4)
   $browse.Tag=@{field=$field;folder=$isFolder;filter=$fileFilter;description=$labelText}
   $browse.Add_Click({
     param($sender,$eventArgs)
@@ -85,15 +85,15 @@ $script:destination.Text=[Environment]::GetFolderPath('Desktop')
 $script:build = New-Object System.Windows.Forms.Button
 $script:build.Text = '配布用 Ver.1.0 ZIPを作成'
 $script:build.Dock = 'Fill'
-$script:build.Margin = New-Object System.Windows.Forms.Padding(0,3,0,4)
-$script:build.Font = New-Object System.Drawing.Font('Yu Gothic UI',11,[Drawing.FontStyle]::Bold)
+$script:build.Margin = [System.Windows.Forms.Padding]::new(0,3,0,4)
+$script:build.Font = [System.Drawing.Font]::new('Yu Gothic UI',11.0,[System.Drawing.FontStyle]::Bold)
 $panel.Controls.Add($script:build,0,4)
 $panel.SetColumnSpan($script:build,3)
 
 $script:bar=New-Object System.Windows.Forms.ProgressBar
 $script:bar.Dock='Fill'
 $script:bar.Style='Continuous'
-$script:bar.Margin=New-Object System.Windows.Forms.Padding(0,4,0,4)
+$script:bar.Margin=[System.Windows.Forms.Padding]::new(0,4,0,4)
 $panel.Controls.Add($script:bar,0,5)
 $panel.SetColumnSpan($script:bar,3)
 
@@ -102,7 +102,7 @@ $script:output.Multiline=$true
 $script:output.ReadOnly=$true
 $script:output.ScrollBars='Vertical'
 $script:output.Dock='Fill'
-$script:output.Font=New-Object System.Drawing.Font('Consolas',9)
+$script:output.Font=[System.Drawing.Font]::new('Consolas',9.0)
 $panel.Controls.Add($script:output,0,6)
 $panel.SetColumnSpan($script:output,3)
 
@@ -129,12 +129,12 @@ $script:tick.Add_Tick({
   $script:build.Enabled=$true
   if($hasError) {
     Log '作成失敗。上のエラーを確認してください。'
-    [Windows.Forms.MessageBox]::Show($script:gui,
+    [System.Windows.Forms.MessageBox]::Show($script:gui,
        '配布ZIPの作成に失敗しました。下の詳細をご確認ください。',
        '失敗','OK','Error')|Out-Null
   } else {
     $script:bar.Value=100
-    [Windows.Forms.MessageBox]::Show($script:gui,
+    [System.Windows.Forms.MessageBox]::Show($script:gui,
        'ZIPの生成と素材検証に成功しました。公開前に実曲の変換・音質を確認してください。',
        '完了','OK','Information')|Out-Null
   }
@@ -147,14 +147,14 @@ $script:build.Add_Click({
   if(!(Test-Path -LiteralPath $src -PathType Leaf) -or
      !(Test-Path -LiteralPath $art -PathType Leaf) -or
      !(Test-Path -LiteralPath $out -PathType Container)) {
-    [Windows.Forms.MessageBox]::Show($script:gui,
+    [System.Windows.Forms.MessageBox]::Show($script:gui,
        'v1.48素材ZIP、EXE成果物ZIP、保存先の3つを指定してください。',
        '入力不足','OK','Warning')|Out-Null
     return
   }
   $runner=Join-Path $PSScriptRoot 'package_v1_0_offline.ps1'
   if(!(Test-Path -LiteralPath $runner -PathType Leaf)) {
-    [Windows.Forms.MessageBox]::Show($script:gui,
+    [System.Windows.Forms.MessageBox]::Show($script:gui,
        'package_v1_0_offline.ps1がGUIと同じフォルダーに必要です。',
        'ファイル不足','OK','Error')|Out-Null
     return
@@ -176,7 +176,7 @@ $script:build.Add_Click({
 $script:gui.Add_FormClosing({
   param($sender,$eventArgs)
   if($script:job) {
-    [Windows.Forms.MessageBox]::Show($script:gui,
+    [System.Windows.Forms.MessageBox]::Show($script:gui,
        'ZIP作成中です。終了後に閉じてください。','処理中','OK','Warning')|Out-Null
     $eventArgs.Cancel=$true
   }
