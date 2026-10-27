@@ -110,17 +110,32 @@ function Log([string]$text) {
   $script:output.AppendText($text+[Environment]::NewLine)
 }
 $script:job=$null
+$script:jobHadError=$false
+$script:jobSucceeded=$false
 $script:tick=New-Object System.Windows.Forms.Timer
 $script:tick.Interval=500
 $script:tick.Add_Tick({
   if(!$script:job) { return }
-  foreach($line in @(Receive-Job -Job $script:job -ErrorAction SilentlyContinue)) {
-    if($null -ne $line) { Log ([string]$line) }
+  $receiveErrors=@()
+  $messages=@(Receive-Job -Job $script:job -ErrorAction SilentlyContinue -ErrorVariable +receiveErrors)
+  foreach($line in $messages) {
+    if($null -ne $line) {
+      $msg=[string]$line
+      Log $msg
+      if($msg -eq 'BUILD_SUCCESS') { $script:jobSucceeded=$true }
+      if($msg.StartsWith('PACKAGING_ERROR:')) { $script:jobHadError=$true }
+    }
+  }
+  foreach($problem in $receiveErrors) {
+    $script:jobHadError=$true
+    Log ('エラー詳細: '+ $problem.ToString())
   }
   if($script:job.State -in @('Running','NotStarted')) { return }
-  $hasError = $script:job.State -ne 'Completed'
+  $hasError = $script:jobHadError -or
+    ($script:job.State -ne 'Completed') -or (-not $script:jobSucceeded)
   $errors = @($script:job.ChildJobs[0].Error | ForEach-Object { $_.ToString() })
-  if($errors.Count -gt 0) { $hasError=$true; foreach($line in $errors){Log $line} }
+  if($errors.Count -gt 0) { $hasError=$true; foreach($line in $errors){Log ('ジョブ例外: '+$line)} }
+  if(-not $script:jobSucceeded) { Log '完了判定BUILD_SUCCESSがありません。作成成功として扱いません。' }
   Remove-Job -Job $script:job -Force -ErrorAction SilentlyContinue
   $script:job=$null
   $script:tick.Stop()
@@ -160,6 +175,8 @@ $script:build.Add_Click({
     return
   }
   $script:output.Clear()
+  $script:jobHadError=$false
+  $script:jobSucceeded=$false
   Log 'Ver.1.0の配布ZIPを作成中です。終了するまでこの画面を閉じないでください。'
   $script:bar.Style='Marquee'
   $script:bar.MarqueeAnimationSpeed=28
