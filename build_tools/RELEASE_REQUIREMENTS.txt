@@ -18,7 +18,7 @@ DonOriginal3DMusic3 Ver.1.0 再配布チェック（開発用・配布ZIPへは�
 【配布素材】
 ユーザー提供 DonOriginal3DMusic3_v1.48_StereoBRIR_GUI_Research.zip と同等のGitHub release assetを唯一の供給元とする。
 GitHub API実測 metadata：size=513598015 SHA256=9f2de7b19f1b82bf2d4fe14b4c44f6d821c83115feeee3614c12cc90ff04c5da。
-必要素材：assets/brir F/B room + F sideL/sideR、assets/hrtf/hutubs_pp3.sofa、assets/models/demucs_onnx_cache/、tools/ffmpeg/、tools/stem_separator/。
+必要素材：assets/brir F/B room + F sideL/sideR、assets/hrtf/hutubs_pp3.sofa、assets/models/demucs_onnx_cache/、tools/ffmpeg/（ffmpeg.exe・ffprobe.exe）、tools/stem_separator/。
 v1.48アプリ旧EXE、研究資料、過去CMD、管理用TXTは配布ZIPへ含めない。
 
 【配布ZIP構成】
