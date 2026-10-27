@@ -74,7 +74,7 @@ binaries, model weights and source measurement datasets.
 """
 
 # Strip ancestors such as "DonOriginal3DMusic3_v1.48/" from each member.
-ANCHORS = ("assets", "tools")
+ANCHORS = ("assets", "tools", "licenses")
 EXCLUDED_NAMES = {
     "thumbs.db", "desktop.ini", "donoriginal3dmusic3.exe",
     "donoriginal3dmusic3_管理用.txt", "readme.md",
@@ -149,6 +149,15 @@ def relative_resource_path(member_name: str) -> str | None:
         return "assets/hrtf/hutubs_pp3.sofa"
     if low.startswith("assets/models/demucs_onnx_cache/"):
         return dst
+    if low.startswith("licenses/"):
+        # Keep original third-party license texts, never management or audit TXT.
+        name = PurePosixPath(dst).name.lower()
+        if name in ("ht-demucs_license.txt", "demucs-onnx_license.txt"):
+            return dst
+        if name in ("license", "license.txt", "copying", "copying.txt",
+                    "license.md", "copyright", "notice", "notice.txt"):
+            return dst
+        return None
     if low.startswith("tools/ffmpeg/") or low.startswith("tools/stem_separator/"):
         name = PurePosixPath(dst).name.lower()
         if name in EXCLUDED_NAMES or name.endswith(EXCLUDED_SUFFIXES):
@@ -179,6 +188,13 @@ def gather(archive: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
         canonical.add(key)
         found[dest] = entry
     missing = {p for p in REQUIRED if p.lower() not in canonical}
+    # The original v1.48 source contains MIT license texts for both bundled
+    # source-separation technologies. Their inclusion is mandatory on release.
+    license_files = {
+        "licenses/ht-demucs_license.txt",
+        "licenses/demucs-onnx_license.txt",
+    }
+    missing.update(license_files - canonical)
     if missing:
         raise ValueError("v1.48 ZIP is missing required runtime assets:\n" + "\n".join(sorted(missing)))
     model_files = [n for n in found if n.lower().startswith(
@@ -222,7 +238,7 @@ def pack(v148: Path, exe: Path, target: Path) -> None:
             names = z.namelist()
             # Only end-user app, assets, tools, brief help and licenses.
             root = PACKAGE_ROOT + "/"
-            allowed = ("assets/", "tools/")
+            allowed = ("assets/", "tools/", "licenses/")
             for file in names:
                 if not file.startswith(root):
                     raise ValueError("Unexpected ZIP root: " + file)
