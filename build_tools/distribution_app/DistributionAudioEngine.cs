@@ -281,14 +281,18 @@ internal static class DistributionAudioEngine
             "[vSide][backSide]amix=inputs=2:normalize=0:duration=longest,asplit=2[sL0][sR0];"+
             "[sL0]asplit=2[sLL][sLR];"+
             "[sR0]volume=-1,asplit=2[sRL][sRR];"+
-            "[vFL][3:a]"+Afir+"[vOL];"+
-            "[vFR][4:a]"+Afir+"[vOR];"+
-            "[bFL][3:a]"+Afir+"[bfOL];"+
-            "[bFR][4:a]"+Afir+"[bfOR];"+
-            "[backRL][5:a]"+Afir+"[rOL];"+
-            "[backRR][6:a]"+Afir+"[rOR];"+
-            "[bRL][5:a]"+Afir+"[brOL];"+
-            "[bRR][6:a]"+Afir+"[brOR];"+
+            "[3:a]asplit=2[irFLL][irFLB];"+
+            "[4:a]asplit=2[irFRL][irFRB];"+
+            "[5:a]asplit=2[irRLL][irRLB];"+
+            "[6:a]asplit=2[irRRL][irRRB];"+
+            "[vFL][irFLL]"+Afir+"[vOL];"+
+            "[vFR][irFRL]"+Afir+"[vOR];"+
+            "[bFL][irFLB]"+Afir+"[bfOL];"+
+            "[bFR][irFRB]"+Afir+"[bfOR];"+
+            "[backRL][irRLL]"+Afir+"[rOL];"+
+            "[backRR][irRRL]"+Afir+"[rOR];"+
+            "[bRL][irRLB]"+Afir+"[brOL];"+
+            "[bRR][irRRB]"+Afir+"[brOR];"+
             "[sLL][7:a]"+Afir+"[sOLL];"+
             "[sLR][8:a]"+Afir+"[sOLR];"+
             "[sRL][9:a]"+Afir+"[sORL];"+
@@ -305,8 +309,10 @@ internal static class DistributionAudioEngine
         double ss=0,peak=0;long count=0;
         using var input=File.OpenRead(raw);
         byte[] bytes=new byte[Block];
-        while(count<frameLimit*2) {
-            int amount=(int)Math.Min(Block,(frameLimit*2-count)*4L);
+        long sampleLimit = frameLimit == long.MaxValue ?
+            long.MaxValue : checked(frameLimit * 2);
+        while(count<sampleLimit) {
+            int amount=(int)Math.Min(Block,Math.Min(long.MaxValue/4,sampleLimit-count)*4L);
             int n=input.Read(bytes,0,amount);
             if(n==0)break;
             if(n%4!=0)throw new InvalidDataException("PCM境界エラー");
