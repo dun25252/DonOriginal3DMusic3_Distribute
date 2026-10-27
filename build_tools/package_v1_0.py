@@ -25,6 +25,7 @@ OUTFILE = "DonOriginal3DMusic3_v1.0_Windows.zip"
 REQUIRED = {
     "assets/hrtf/hutubs_pp3.sofa",
     "tools/ffmpeg/bin/ffmpeg.exe",
+    "tools/ffmpeg/bin/ffprobe.exe",
     "tools/stem_separator/stem_separator.exe",
 }
 for direction in ("F", "B"):
