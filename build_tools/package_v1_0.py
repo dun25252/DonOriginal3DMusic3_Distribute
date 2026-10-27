@@ -146,7 +146,7 @@ def gather(archive: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
             raise ValueError("Unexpected empty asset: " + dest)
         canonical.add(key)
         found[dest] = entry
-    missing = REQUIRED - canonical
+    missing = {p for p in REQUIRED if p.lower() not in canonical}
     if missing:
         raise ValueError("v1.48 ZIP is missing required runtime assets:\n" + "\n".join(sorted(missing)))
     model_files = [n for n in found if n.lower().startswith(
