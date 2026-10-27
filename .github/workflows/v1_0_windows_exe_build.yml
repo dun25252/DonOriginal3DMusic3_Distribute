@@ -32,6 +32,23 @@ jobs:
           if ($info.FileVersion -ne '1.0.0.0') { throw "Unexpected FileVersion: $($info.FileVersion)" }
           if ($info.ProductVersion -ne '1.0.0.0') { throw "Unexpected ProductVersion: $($info.ProductVersion)" }
           Write-Host 'V100_WINDOWS_EXE_COMPILED'
+      - name: Run actual v1.0 GUI EXE self-test
+        shell: pwsh
+        run: |
+          $app=(Resolve-Path .\\build_temp\\DonOriginal3DMusic3.exe).Path
+          $testLog=Join-Path $env:TEMP 'DonOriginal3DMusic3_v1.0_selftest_failure.txt'
+          Remove-Item -LiteralPath $testLog -ErrorAction SilentlyContinue
+          $job=Start-Process -FilePath $app -ArgumentList '--self-test' -Wait -PassThru -WindowStyle Hidden
+          if ($job.ExitCode -ne 0) {
+            if (Test-Path $testLog) { Get-Content $testLog }
+            throw "v1.0 GUI EXE self-test failed with $($job.ExitCode)"
+          }
+          Write-Host 'V100_WINDOWS_GUI_SELF_TEST_PASSED'
+      - name: Explicitly mark binary as NOT YET READY FOR PUBLIC DISTRIBUTION
+        shell: pwsh
+        run: |
+          Write-Host 'EXE compilation and synthetic tests are not full HUTUBS/IoSR/HTDemucs audio QA.'
+          Write-Host 'The genuine 513,598,015-byte v1.48 archive must be verified and packaged first.'
       - uses: actions/upload-artifact@v4
         with:
           name: DonOriginal3DMusic3_v1.0_Exe_ONLY_NOT_DISTRIBUTION
