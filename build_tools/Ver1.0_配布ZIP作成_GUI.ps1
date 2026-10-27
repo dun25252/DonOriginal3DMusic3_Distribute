@@ -23,7 +23,7 @@ $panel.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.
 foreach($h in @(55,51,51,51,53,37)) {
   $panel.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute,$h))
 }
-$panel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent,100)))
+$panel.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Percent,100))
 $script:gui.Controls.Add($panel)
 
 $head = New-Object System.Windows.Forms.Label
