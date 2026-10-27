@@ -99,7 +99,10 @@ def verify_exe_version(exe: Path) -> None:
     This is an EXE metadata check, not proof that output naming or audio QA passes.
     """
     if os.name != "nt":
-        return  # Linux CI uses synthetic binary fixtures; real release build is Windows.
+        raise ValueError(
+            "Ver.1.0配布ZIPの最終パッケージ生成はWindows上で行ってください。"
+            "Linuxのテスト用モックEXEを本配布へ混入させることは禁止します。"
+        )
     env = dict(os.environ)
     env["DON_EXE_PATH"] = str(exe.resolve())
     proc = subprocess.run(
