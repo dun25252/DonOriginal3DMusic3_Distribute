@@ -415,6 +415,105 @@ internal static class DistributionAudioEngine
         throw new IOException("同名曲の保存番号が上限に達しました");
     }
 
+    // Local Windows EXE smoke test; does NOT prove any real H3/FFmpeg rendering.
+    // Fail-closed build gate for naming, file cleanup, stem alignment, and IR tail.
+    internal static async Task SelfTestAsync()
+    {
+        string root=Path.Combine(Path.GetTempPath(),
+            "DonOriginal3DMusic3_v1.0_selftest_"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        static void Require(bool valid,string message)
+        {
+            if(!valid)throw new InvalidOperationException("EXE self-test: "+message);
+        }
+        try
+        {
+            string backing=Path.Combine(root,"input");
+            Directory.CreateDirectory(backing);
+            string rendered=Path.Combine(backing,"rendered.flac");
+            await File.WriteAllBytesAsync(rendered,new byte[8192]);
+
+            string destination=Path.Combine(root,"save");
+            var cts=CancellationToken.None;
+            string first=await MoveOneOutput(rendered,
+                Path.Combine(root,"Cats are dangerous.flac"),destination,cts);
+            string second=await MoveOneOutput(rendered,
+                Path.Combine(root,"Cats are dangerous.flac"),destination,cts);
+            Require(Path.GetFileName(first)=="Cats are dangerous_v1.0.flac",
+                "first output naming");
+            Require(Path.GetFileName(second)=="Cats are dangerous(2)_v1.0.flac",
+                "duplicate output naming");
+            Require(Path.GetFileName(Path.GetDirectoryName(first)!)=="3D変換先",
+                "output directory naming");
+            Require(Sanitize("猫:夏/曲")=="猫_夏_曲","Japanese song title preservation");
+            Require(Sanitize("COM9")=="_COM9","Windows reserved device protection");
+            var outputFiles=Directory.GetFiles(Path.GetDirectoryName(first)!);
+            Require(outputFiles.Length==2 && outputFiles.All(f=>
+                Path.GetExtension(f).Equals(".flac",StringComparison.OrdinalIgnoreCase)),
+                "research debug files leaked into output");
+
+            const int frames=96000;
+            const int bytes=frames*2*sizeof(float);
+            var voice=new float[frames*2];
+            var bass=new float[frames*2];
+            var stereo=new float[frames*2];
+            for(int i=0;i<voice.Length;i++)
+            {
+                voice[i]=0.12f;
+                bass[i]=0.08f;
+                stereo[i]=0.25f;
+            }
+            void WriteRaw(string name,float[] values)
+            {
+                byte[] data=new byte[values.Length*sizeof(float)];
+                Buffer.BlockCopy(values,0,data,0,data.Length);
+                File.WriteAllBytes(Path.Combine(root,name),data);
+            }
+            WriteRaw("src.f32",stereo);WriteRaw("voice.f32",voice);
+            WriteRaw("bass.f32",bass);
+            ReconstructBuses(Path.Combine(root,"src.f32"),
+                Path.Combine(root,"voice.f32"),
+                Path.Combine(root,"bass.f32"),
+                Path.Combine(root,"voice_out.f32"),
+                Path.Combine(root,"bass_out.f32"),
+                Path.Combine(root,"complement_out.f32"),cts);
+            var residual=ReadFloat(Path.Combine(root,"complement_out.f32"));
+            Require(residual.Length==frames*2 &&
+                Math.Abs(residual[5] - 0.05f)<0.00001,
+                "stem complement reconstruction");
+            // A 0.3s short model prediction must fail, never lose vocals by padding.
+            File.WriteAllBytes(Path.Combine(root,"bass_short.f32"),new byte[bytes/2]);
+            bool rejected=false;
+            try
+            {
+                ReconstructBuses(Path.Combine(root,"src.f32"),
+                    Path.Combine(root,"voice.f32"),
+                    Path.Combine(root,"bass_short.f32"),
+                    Path.Combine(root,"voice_short_out.f32"),
+                    Path.Combine(root,"bass_short_out.f32"),
+                    Path.Combine(root,"back_short_out.f32"),cts);
+            }
+            catch(InvalidDataException){rejected=true;}
+            Require(rejected,"misaligned Stem must fail");
+
+            var left=new float[2400];var right=new float[2400];
+            left[300]=0.2f;right[300]=0.3f;
+            left[1000]=0.06f;right[1000]=0.04f;
+            var head=new float[2400*2];
+            head[300*2]=0.2f;head[300*2+1]=0.3f;
+            var hybrid=ReplaceDirect(left,right,head);
+            Require(hybrid.L[1000]==left[1000] &&
+                hybrid.R[1000]==right[1000],
+                "room reverberation tail must remain unchanged");
+            Require(Filter(1,-0.5).Contains("afir=irnorm=-1"),
+                "full measured room IR not found in DSP");
+        }
+        finally
+        {
+            try{Directory.Delete(root,true);}catch { }
+        }
+    }
+
     public static async Task<string> ConvertAsync(string input,string outputBase,
         double voiceDb,double backingDb,IProgress<int>? progress,CancellationToken token)
     {
