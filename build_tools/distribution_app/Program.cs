@@ -13,8 +13,27 @@ namespace DonOriginal3DMusic3;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        if(args.Length==1 && args[0]=="--self-test")
+        {
+            try
+            {
+                DistributionAudioEngine.SelfTestAsync().GetAwaiter().GetResult();
+                Environment.ExitCode=0;
+            }
+            catch(Exception ex)
+            {
+                // A Windows GUI executable does not have a dependable console.
+                // The build script consumes exit code and a text report in its
+                // own TEMP directory; this never appears in consumer exports.
+                string report=Path.Combine(Path.GetTempPath(),
+                    "DonOriginal3DMusic3_v1.0_selftest_failure.txt");
+                try{File.WriteAllText(report,ex.ToString());}catch{}
+                Environment.ExitCode=1;
+            }
+            return;
+        }
         ApplicationConfiguration.Initialize();
         Application.Run(new DistributionForm());
     }
