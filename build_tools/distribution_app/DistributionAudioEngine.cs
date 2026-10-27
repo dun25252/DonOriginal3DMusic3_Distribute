@@ -202,7 +202,7 @@ internal static class DistributionAudioEngine
         return (outL,outR);
     }
 
-    private static async Task ReconstructBuses(string source,string vocals,string bass,
+    private static void ReconstructBuses(string source,string vocals,string bass,
         string vocalOut,string bassOut,string backOut,CancellationToken token)
     {
         if (new FileInfo(source).Length % 8 != 0)
@@ -218,17 +218,17 @@ internal static class DistributionAudioEngine
         long total=0; double sum=0;
         while(true) {
             token.ThrowIfCancellationRequested();
-            int n=await a.ReadAsync(aa,token);
+            int n=a.Read(aa,0,Block);
             if (n==0) break;
             // FileStream.ReadAsync may read fewer bytes; gather a whole block.
             while(n < Block) {
-                int next=await a.ReadAsync(aa.AsMemory(n,Block-n),token);
+                int next=a.Read(aa,n,Block-n);
                 if(next==0)break; n+=next;
             }
             if(n%8!=0)throw new InvalidDataException("Stereo float32境界に失敗");
             Array.Clear(bb); Array.Clear(cc);
-            await ReadAllUpTo(b,bb,n,token);
-            await ReadAllUpTo(c,cc,n,token);
+            ReadAllUpTo(b,bb,n,token);
+            ReadAllUpTo(c,cc,n,token);
             var src=MemoryMarshal.Cast<byte,float>(aa.AsSpan(0,n));
             var voc=MemoryMarshal.Cast<byte,float>(bb.AsSpan(0,n));
             var bas=MemoryMarshal.Cast<byte,float>(cc.AsSpan(0,n));
@@ -244,20 +244,21 @@ internal static class DistributionAudioEngine
                     sum+=(double)voc[j]*voc[j];
                 }
             }
-            await vo.WriteAsync(bb.AsMemory(0,n),token);
-            await bo.WriteAsync(cc.AsMemory(0,n),token);
-            await bk.WriteAsync(dd.AsMemory(0,n),token);
+            vo.Write(bb,0,n);
+            bo.Write(cc,0,n);
+            bk.Write(dd,0,n);
             total+=n;
         }
         if(total<48000*8 || sum<1e-10)
             throw new InvalidDataException("原音の長さまたはボーカル分離に問題があります");
     }
 
-    private static async Task ReadAllUpTo(Stream s,byte[] buffer,int size,CancellationToken token)
+    private static void ReadAllUpTo(Stream s,byte[] buffer,int size,CancellationToken token)
     {
         int offset=0;
         while(offset<size) {
-            int got=await s.ReadAsync(buffer.AsMemory(offset,size-offset),token);
+            token.ThrowIfCancellationRequested();
+            int got=s.Read(buffer,offset,size-offset);
             if(got==0)break;
             offset+=got;
         }
@@ -423,7 +424,7 @@ internal static class DistributionAudioEngine
             await DecodeAsync(stems.Vocals,voc,2,token);
             await DecodeAsync(stems.Bass,bass,2,token);
             string va=Path.Combine(temp,"va.f32"),ba=Path.Combine(temp,"ba.f32"),back=Path.Combine(temp,"back.f32");
-            await ReconstructBuses(source,voc,bass,va,ba,back,token);
+            await Task.Run(() => ReconstructBuses(source,voc,bass,va,ba,back,token),token);
             progress?.Report(51);
             var front=await BuildHybridIr(temp,"F",0,token);
             var rear=await BuildHybridIr(temp,"B",180,token);
