@@ -55,18 +55,22 @@ def check_zip(p: Path) -> None:
     print("ZIP CONTENTS OK", p)
 
 
-def check_conversion(root: Path) -> None:
+def check_conversion(root: Path, expected_count: int | None = None) -> None:
     folder = root if root.name == "3D変換先" else root / "3D変換先"
     if not folder.is_dir():
         raise ValueError("Conversion folder must be named 3D変換先: " + str(folder))
     bad = []
-    outputs = list(folder.rglob("*"))
+    outputs = list(folder.iterdir())
+    for path in outputs:
+        if path.is_dir():
+            bad.append("Song/date/research subfolder is forbidden: " + str(path))
+        elif path.suffix.lower() != ".flac":
+            bad.append("Extra file in final output folder: " + str(path))
     flacs = [x for x in outputs if x.is_file() and x.suffix.lower() == ".flac"]
     if not flacs:
         raise ValueError("No FLAC output was generated")
-    for path in outputs:
-        if path.is_file() and path.suffix.lower() in (".txt", ".csv", ".log"):
-            bad.append(str(path))
+    if expected_count is not None and len(flacs) != expected_count:
+        bad.append(f"Expected {expected_count} FLAC files, found {len(flacs)}")
     for p in flacs:
         if not p.name.endswith("_v1.0.flac"):
             bad.append("Invalid FLAC filename: " + str(p))
@@ -83,11 +87,12 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--zip", type=Path, required=True)
     parser.add_argument("--converted-output-dir", type=Path)
+    parser.add_argument("--expect-count", type=int, help="Number of songs converted in a clean QA output directory")
     args=parser.parse_args()
     try:
         check_zip(args.zip)
         if args.converted_output_dir:
-            check_conversion(args.converted_output_dir)
+            check_conversion(args.converted_output_dir, args.expect_count)
         else:
             print("NOTICE: Real Windows conversion naming/debug TXT test was not run.")
     except (OSError, ValueError, zipfile.BadZipFile) as exc:
