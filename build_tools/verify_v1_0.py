@@ -10,6 +10,7 @@ NAME = "DonOriginal3DMusic3_v1.0/"
 ROOT_ALLOW = {"DonOriginal3DMusic3.exe", "README.txt", "THIRD_PARTY_NOTICES.txt"}
 NEEDED = {
     "tools/ffmpeg/bin/ffmpeg.exe",
+    "tools/ffmpeg/bin/ffprobe.exe",
     "tools/stem_separator/stem_separator.exe",
     "assets/hrtf/hutubs_pp3.sofa",
 }
