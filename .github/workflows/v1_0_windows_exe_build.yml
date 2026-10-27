@@ -1,0 +1,43 @@
+name: Ver.1.0 Windows GUI compile and minimal smoke
+
+on:
+  push:
+    branches:
+      - 'build/v1.0-repackage'
+    paths:
+      - 'build_tools/distribution_app/**'
+      - '.github/workflows/v1_0_windows_exe_build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-gui:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compile portable GUI
+        shell: pwsh
+        run: |
+          dotnet publish .\build_tools\distribution_app\DonOriginal3DMusic3.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o .\build_temp
+          if ($LASTEXITCODE -ne 0) { throw 'C# distribution GUI failed to compile' }
+          if (!(Test-Path .\build_temp\DonOriginal3DMusic3.exe)) { throw 'Missing GUI EXE' }
+          $app=(Resolve-Path .\build_temp\DonOriginal3DMusic3.exe).Path
+          $info=[Diagnostics.FileVersionInfo]::GetVersionInfo($app)
+          if ($info.FileVersion -ne '1.0.0.0') { throw "Unexpected FileVersion: $($info.FileVersion)" }
+          if ($info.ProductVersion -ne '1.0.0.0') { throw "Unexpected ProductVersion: $($info.ProductVersion)" }
+          Write-Host 'V100_WINDOWS_EXE_COMPILED'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DonOriginal3DMusic3_v1.0_Exe_ONLY_NOT_DISTRIBUTION
+          path: build_temp/DonOriginal3DMusic3.exe
+          retention-days: 7
+          if-no-files-found: error
+# This artifact is deliberately NOT the public ZIP.
+# Official distribution must additionally verify the genuine v1.48 asset ZIP,
+# third-party redistribution terms, and audio with H3 SOFA and HTDemucs.
