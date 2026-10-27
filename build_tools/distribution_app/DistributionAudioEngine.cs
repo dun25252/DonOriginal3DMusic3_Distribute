@@ -514,6 +514,54 @@ internal static class DistributionAudioEngine
         }
     }
 
+    private static async Task ValidateFlacAsync(
+        string flac,long inputFrames,CancellationToken token)
+    {
+        // Validate decoded metadata *before* exposing a file to end users.
+        using var p=new Process();
+        p.StartInfo=new ProcessStartInfo {
+            FileName=Fp,WorkingDirectory=AppContext.BaseDirectory,
+            RedirectStandardOutput=true,RedirectStandardError=true,
+            UseShellExecute=false,CreateNoWindow=true
+        };
+        foreach(string arg in new [] {
+            "-v","error","-select_streams","a:0",
+            "-show_entries","stream=codec_name,channels,sample_rate,bits_per_raw_sample:format=duration",
+            "-of","json",flac
+        })p.StartInfo.ArgumentList.Add(arg);
+        if(!p.Start())throw new InvalidDataException("FLACの検証が開始できません");
+        using var cancel=token.Register(()=>{
+            try{if(!p.HasExited)p.Kill(true);}catch{}
+        });
+        Task<string> result=p.StandardOutput.ReadToEndAsync(token);
+        Task<string> errors=p.StandardError.ReadToEndAsync(token);
+        await Task.WhenAll(result,errors,p.WaitForExitAsync(token));
+        if(p.ExitCode!=0)
+            throw new InvalidDataException("FLAC形式検査に失敗: "+errors.Result.Trim());
+        using var json=JsonDocument.Parse(result.Result);
+        if(!json.RootElement.TryGetProperty("streams",out var streams) ||
+           streams.GetArrayLength()!=1)
+            throw new InvalidDataException("最終FLACに音声ストリームがありません");
+        JsonElement first=streams[0];
+        string codec=first.GetProperty("codec_name").GetString()??"";
+        string hz=first.GetProperty("sample_rate").GetString()??"";
+        int channels=first.GetProperty("channels").GetInt32();
+        string bits=first.GetProperty("bits_per_raw_sample").GetString()??"";
+        if(codec!="flac" || hz!="48000" || channels!=2 || bits!="24")
+            throw new InvalidDataException(
+                "配布音源はFLAC 48kHz/24bit/2chである必要があります。"
+                +" 実際: "+codec+" "+hz+"Hz "+bits+"bit "+channels+"ch");
+        if(!json.RootElement.TryGetProperty("format",out var format) ||
+           !format.TryGetProperty("duration",out var durationElement) ||
+           !double.TryParse(durationElement.GetString(),NumberStyles.Float,
+               CultureInfo.InvariantCulture,out double seconds))
+            throw new InvalidDataException("FLAC再生時間を確認できません");
+        double sourceSeconds=inputFrames/(double)Rate;
+        if(!double.IsFinite(seconds) || seconds<sourceSeconds-0.02 ||
+           seconds>sourceSeconds+30.0)
+            throw new InvalidDataException("最終FLACの再生時間が原曲と一致しません");
+    }
+
     public static async Task<string> ConvertAsync(string input,string outputBase,
         double voiceDb,double backingDb,IProgress<int>? progress,CancellationToken token)
     {
@@ -588,6 +636,7 @@ internal static class DistributionAudioEngine
             },token);
             if(!File.Exists(tempFlac)||new FileInfo(tempFlac).Length<4096)
                 throw new IOException("最終FLACの書き出しに失敗");
+            await ValidateFlacAsync(tempFlac,originalStats.Frames,token);
             string result=await MoveOneOutput(tempFlac,input,outputBase,token);
             progress?.Report(100);
             return result;
