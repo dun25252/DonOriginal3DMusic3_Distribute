@@ -7,6 +7,7 @@ param(
   [Parameter(Mandatory=$true)][string]$OutDir
 )
 $ErrorActionPreference = 'Stop'
+try {
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
@@ -148,6 +149,13 @@ try {
     $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $modelPresent = $false
     $totalBytes = [long]0
+    Write-Output ('ZIP全項目数: '+$sourceZip.Entries.Count)
+    $exampleResources = @($sourceZip.Entries | Where-Object {
+      $_.FullName -match '(^|/)(assets|tools|licenses)/'
+    } | Select-Object -First 8 -ExpandProperty FullName)
+    if ($exampleResources.Count -gt 0) {
+      Write-Output ('ZIP内素材の先頭例: ' + ($exampleResources -join '; '))
+    }
     foreach ($entry in $sourceZip.Entries) {
       $rel = Resource-Path $entry.FullName
       if (!$rel) { continue }
@@ -159,10 +167,20 @@ try {
           $rel.ToLowerInvariant().EndsWith('.onnx')) { $modelPresent = $true }
       $map.Add(@{Name=$rel;Entry=$entry})
     }
-    foreach ($must in $needed) {
-      if (!$seen.Contains($must)) { throw ('必要素材が不足: ' + $must) }
+    Write-Output ('抽出候補: ' + $map.Count + 'ファイル / 展開推定 '+ $totalBytes +' bytes')
+    $missingAssets = @($needed | Where-Object { -not $seen.Contains($_) } | Sort-Object)
+    if ($missingAssets.Count -gt 0) {
+      Write-Output ('検出したassets/例: ' +
+        ((@($map | Where-Object { $_.Name -like 'assets/*' } |
+          Select-Object -First 12 | ForEach-Object { $_.Name })) -join '; '))
+      throw ('必須素材が見つかりません: ' + ($missingAssets -join ', '))
     }
-    if (!$modelPresent) { throw 'HTDemucsのオフラインONNXモデルが不足しています。' }
+    if (!$modelPresent) {
+      $modelPaths = @($sourceZip.Entries | Where-Object {
+        $_.FullName -match '(?i)demucs|onnx'
+      } | Select-Object -First 15 -ExpandProperty FullName)
+      throw ('HTDemucsのONNXモデルを検出できません。ZIP内候補: '+($modelPaths -join '; '))
+    }
     Write-Output ('素材数: ' + $map.Count)
 
     $readme = @'
@@ -246,4 +264,14 @@ finally {
     Remove-Item -LiteralPath $tempZip -Force -ErrorAction SilentlyContinue
   }
   Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+catch {
+  Write-Output ('PACKAGING_ERROR: ' + $_.Exception.Message)
+  Write-Output ('ERROR_TYPE: ' + $_.Exception.GetType().FullName)
+  if ($_.ScriptStackTrace) {
+    Write-Output ('SCRIPT_STACK: ' + $_.ScriptStackTrace)
+  }
+  Write-Output ('ERROR_DETAILS: ' + $_.ToString())
+  throw
 }
