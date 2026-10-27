@@ -34,6 +34,17 @@ $v=[System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
 if ($v.FileVersion -ne '1.0.0.0' -or $v.ProductVersion -ne '1.0.0.0') {
   throw "不正なバージョン：FileVersion=$($v.FileVersion), ProductVersion=$($v.ProductVersion)"
 }
+Write-Host 'EXE自身の保存処理・H3室内反射保持・Stem整列テストを実行...'
+$testReport=Join-Path $env:TEMP 'DonOriginal3DMusic3_v1.0_selftest_failure.txt'
+Remove-Item -LiteralPath $testReport -ErrorAction SilentlyContinue
+$selfTest=Start-Process -FilePath $exe -ArgumentList '--self-test' -PassThru -Wait -WindowStyle Hidden
+if ($selfTest.ExitCode -ne 0) {
+  $details=if (Test-Path -LiteralPath $testReport) {
+    Get-Content -LiteralPath $testReport -Raw
+  } else { "不明なセルフテスト失敗（ExitCode=$($selfTest.ExitCode)）" }
+  throw "配布EXE自身の必須テストが失敗しました。ZIPを生成しません。`n$details"
+}
+Write-Host 'VER_1_0_EXE_SELF_TEST_OK'
 Write-Host 'v1.48 ZIPを検証して必要データのみで配布ZIPを生成...'
 $pack=Join-Path $PSScriptRoot 'package_v1_0.py'
 $verify=Join-Path $PSScriptRoot 'verify_v1_0.py'
