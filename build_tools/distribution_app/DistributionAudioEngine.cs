@@ -357,6 +357,42 @@ internal static class DistributionAudioEngine
         return safe;
     }
 
+    // Read format Title first, then stream Title if present. Metadata lookup
+    // failures must never interrupt conversion or change its original audio.
+    private static string? ReadTagTitle(JsonElement tags)
+    {
+        if(tags.ValueKind != JsonValueKind.Object)return null;
+        foreach(var property in tags.EnumerateObject())
+            if(property.Name.Equals("title",StringComparison.OrdinalIgnoreCase) &&
+               property.Value.ValueKind == JsonValueKind.String &&
+               !string.IsNullOrWhiteSpace(property.Value.GetString()))
+                return property.Value.GetString();
+        return null;
+    }
+
+    private static string? ReadSourceTitleJson(JsonElement root)
+    {
+        if(root.ValueKind != JsonValueKind.Object)return null;
+        if(root.TryGetProperty("format",out var format) &&
+           format.TryGetProperty("tags",out var tags))
+        {
+            var value=ReadTagTitle(tags);
+            if(!string.IsNullOrWhiteSpace(value))return value;
+        }
+        if(root.TryGetProperty("streams",out var streams) &&
+           streams.ValueKind == JsonValueKind.Array)
+        {
+            foreach(var stream in streams.EnumerateArray())
+                if(stream.ValueKind == JsonValueKind.Object &&
+                   stream.TryGetProperty("tags",out var streamTags))
+                {
+                    var value=ReadTagTitle(streamTags);
+                    if(!string.IsNullOrWhiteSpace(value))return value;
+                }
+        }
+        return null;
+    }
+
     private static async Task<string> SourceTitle(string source,CancellationToken token)
     {
         using var p = new Process();
@@ -368,22 +404,23 @@ internal static class DistributionAudioEngine
         foreach(string x in new[]{"-v","error","-show_entries",
             "format_tags=title:stream_tags=title","-of","json",source})
             p.StartInfo.ArgumentList.Add(x);
-        try {
+        try
+        {
             p.Start();
-            string text=await p.StandardOutput.ReadToEndAsync(token);
-            await p.WaitForExitAsync(token);
-            if(p.ExitCode==0) {
-                using var doc=JsonDocument.Parse(text);
-                if(doc.RootElement.TryGetProperty("format",out var form) &&
-                   form.TryGetProperty("tags",out var tags)) {
-                    foreach(var x in tags.EnumerateObject())
-                        if(x.Name.Equals("title",StringComparison.OrdinalIgnoreCase) &&
-                           x.Value.ValueKind==JsonValueKind.String &&
-                           !string.IsNullOrWhiteSpace(x.Value.GetString()))
-                            return Sanitize(x.Value.GetString()!);
-                }
+            // Read both pipes to prevent an unlikely ffprobe output deadlock.
+            Task<string> stdout=p.StandardOutput.ReadToEndAsync(token);
+            Task<string> stderr=p.StandardError.ReadToEndAsync(token);
+            await Task.WhenAll(stdout,stderr,p.WaitForExitAsync(token));
+            if(p.ExitCode==0)
+            {
+                using var doc=JsonDocument.Parse(stdout.Result);
+                string? metadataTitle=ReadSourceTitleJson(doc.RootElement);
+                if(!string.IsNullOrWhiteSpace(metadataTitle))
+                    return Sanitize(metadataTitle);
             }
-        }catch{ /* fallback to original basename */ }
+        }
+        catch(OperationCanceledException){throw;}
+        catch { /* a malformed/absent tag falls back to the original filename */ }
         return Sanitize(Path.GetFileNameWithoutExtension(source));
     }
 
@@ -447,6 +484,14 @@ internal static class DistributionAudioEngine
                 "output directory naming");
             Require(Sanitize("猫:夏/曲")=="猫_夏_曲","Japanese song title preservation");
             Require(Sanitize("COM9")=="_COM9","Windows reserved device protection");
+            using(var formatTitle=JsonDocument.Parse(
+                """{"format":{"tags":{"TITLE":"Cats are dangerous"}}}"""))
+                Require(ReadSourceTitleJson(formatTitle.RootElement)=="Cats are dangerous",
+                    "format-level Title metadata");
+            using(var streamTitle=JsonDocument.Parse(
+                """{"streams":[{"tags":{"TITLE":"ストリーム曲名"}}]}"""))
+                Require(ReadSourceTitleJson(streamTitle.RootElement)=="ストリーム曲名",
+                    "stream-level Title metadata");
             var outputFiles=Directory.GetFiles(Path.GetDirectoryName(first)!);
             Require(outputFiles.Length==2 && outputFiles.All(f=>
                 Path.GetExtension(f).Equals(".flac",StringComparison.OrdinalIgnoreCase)),
