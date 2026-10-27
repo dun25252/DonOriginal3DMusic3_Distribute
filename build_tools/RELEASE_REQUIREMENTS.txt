@@ -1,0 +1,38 @@
+DonOriginal3DMusic3 Ver.1.0 再配布チェック（開発用・配布ZIPへは含めない）
+
+作業ブランチ：build/v1.0-repackage
+一般配布リポジトリ main：短い README.md だけ。開発資料・管理用TXT・CMDはmain/配布ZIPへ入れない。
+
+【必須の最終GUI修正】
+1. Windows EXE FileVersion / ProductVersion = 1.0.0.0。アプリ名は DonOriginal3DMusic3.exe。
+2. GUIは「3D音楽変換」一画面、複数曲選択・フォルダー追加・リスト削除・出力先・ゲイン・開始・中止・進捗のみ。
+3. 変換先のルートは利用者指定の保存先内「3D変換先」一つ。日時や研究名をフォルダー名にしない。
+4. 出力は1曲につきFLAC一本。タイトルは原則音楽のTitleタグ、空欄なら入力ファイルの拡張子を除く名前を使用。Windows禁止文字を適切に置換し、空の曲名は禁止。
+5. 命名は「曲名_v1.0.flac」。先頭に B_同じ部屋にH3直接音、A_、研究用Stage名、日時を付けない。
+6. 曲名が重複したときは既存出力を上書きしない。例：曲名(2)_v1.0.flac。
+7. 利用者向け変換結果の各フォルダーにデバッグ・測定・監査用TXT/CSVを残さない。デバッグが必要ならアプリ内部一時フォルダーか開発者向けの任意ログへ隔離し、自動削除。
+8. 今回ユーザーが「いい感じ」と採用したv1.62 実測室内BRIR＋H3直接音（B方式）を本体のメイン変換に採用。実測室内感・ステレオSideを失わせない。A/B選択や実験ログのボタンは配布GUIに出さない。
+9. 過去のGUI素材フォルダー指定、Private GitHubからの自動DL、初回v1.48 ZIP選択は利用者側に表示しない。
+10. Ver.1.0として再発行。Ver.1.1へ上げない。
+
+【配布素材】
+ユーザー提供 DonOriginal3DMusic3_v1.48_StereoBRIR_GUI_Research.zip と同等のGitHub release assetを唯一の供給元とする。
+GitHub API実測 metadata：size=513598015 SHA256=9f2de7b19f1b82bf2d4fe14b4c44f6d821c83115feeee3614c12cc90ff04c5da。
+必要素材：assets/brir F/B room + F sideL/sideR、assets/hrtf/hutubs_pp3.sofa、assets/models/demucs_onnx_cache/、tools/ffmpeg/、tools/stem_separator/。
+v1.48アプリ旧EXE、研究資料、過去CMD、管理用TXTは配布ZIPへ含めない。
+
+【配布ZIP構成】
+DonOriginal3DMusic3_v1.0_Windows.zip
+└ DonOriginal3DMusic3_v1.0
+  ├ DonOriginal3DMusic3.exe
+  ├ assets/（v1.48の必要素材を抽出）
+  ├ tools/（v1.48の必要実行素材を抽出）
+  ├ README.txt（短い使い方）
+  └ THIRD_PARTY_NOTICES.txt（再配布のライセンス表記）
+
+【現在の作業範囲】
+- 配布ZIPを組み立てる Pythonスクリプト: build_tools/package_v1_0.py。
+- ZIP内の資産/不要ファイルを検査し、実際にWindowsで変換された結果の保存名も検査するスクリプト: build_tools/verify_v1_0.py。
+- 作業用ソースと検査コードは「build/v1.0-repackage」に保持。main/配布ZIPへは含めない。
+- 未完了：既存GUI EXEの出力フォルダー名・ファイル名・デバッグTXTの改修、v1.48本物ZIPの展開実検証、実Windows変換、完成バイナリ/ZIP。
+- 作業中にファイル処理環境でClientErrorが起き、ユーザー添付ZIPを直接開けていない。完成を偽って配布しない。
