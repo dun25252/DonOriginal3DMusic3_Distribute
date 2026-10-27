@@ -1,3 +1,18 @@
+# 2026-10-27 追加：Ver.1.0専用 WinForms 全曲エンジンを実装
+
+**既存のGo/PowerShell v1.62/v1.64アーカイブを再パッチする方針から変更。** 現時点ではv1.62の本来のGoソースバイト列を開けないため、完全に独立してコンパイルできる.NET 8 Windows Formsソースを配布準備ブランチに新設した。これは**同じRoomFirst Bの設計に沿った再実装**であり、ユーザーが試聴承認したv1.62の音響波形と一致する保証はない。音質比較なしに公開不可。
+
+- `build_tools/distribution_app/Program.cs`：単一画面の曲選択・フォルダー追加・削除、出力先記憶、ゲイン、進捗、中止。管理・研究・A/Bタブなし。
+- `build_tools/distribution_app/DistributionAudioEngine.cs`：H3 SOFAから前後実測HRIR、IoSR前後Room BRIR直接音0～10msだけ入替、10ms以降のIRはそのまま保持。HTDemucsでボーカル・ベース・伴奏を位相整列し、IoSR側方IRと組み合わせて全曲の独立空間バスへレンダリングする。入力原曲の情報から `3D変換先/曲名_v1.0.flac` のみ出力する。アルゴリズム同一性未確認の研究再実装。
+- `build_tools/distribution_app/StemSeparatorService.cs`：本家GitHub研究ブランチの既存オフラインStem分離ソースをコピーして実体化。実分離モデルは添付されたv1.48 ZIPから配布時に抽出する。
+- `build_tools/distribution_app/DonOriginal3DMusic3.csproj`：Windows x64自己完結単一EXE、FileVersion/ProductVersion=1.0.0.0、AssemblyInformationalVersionも同値。Git SHAの自動追記禁止。
+- `build_tools/build_v1_0_windows.ps1`：Windows .NET 8 SDK＋Python 3でEXEをビルドし、v1.48素材ZIPを厳格なSHA-256で照合、必要なassets/tools/短いREADME＋外部ライセンス表記のみを収録する。
+- `.github/workflows/v1_0_windows_exe_build.yml`：Windowsコンパイル、EXEバージョン検査、EXE-only CI Artifact。**配布用ZIPとは別**。GitHub Actionsジョブは現時点でもrunner_id=0/steps=0のため実行されていない。
+
+**未完了必須ゲート**：C#ソース実コンパイルとエラー修正、実v1.48素材（アップロード済み）ZIP SHA/CRC抽出、Windows実機の音声処理と4曲一括出力、採用済みv1.62 B試作との耳による品質比較と直接音/後期IRの検証、第三者データの再配布ライセンス確認。この条件未達では一般公開用正式Ver.1.0と称さない。過去に記したGo `outputlayout` は設計参考・単体テスト用で、新C# GUIへそのままはリンクされていない。
+
+---
+
 # Ver.1.0 final EXE integration / release gate (not distributed)
 
 **The public build remains Ver.1.0; do not increment to 1.1.** This file belongs ONLY to `build/v1.0-repackage`, not the end-user ZIP or main README.
