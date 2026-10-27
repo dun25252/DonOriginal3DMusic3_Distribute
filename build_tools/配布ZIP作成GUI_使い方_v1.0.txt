@@ -17,7 +17,8 @@ DonOriginal3DMusic3 Ver.1.0 配布ZIP作成GUI（開発者用）
 2. build_tools にある次の2ファイルを同じ場所に置く。
    ・Ver1.0_配布ZIP作成_GUI.ps1
    ・package_v1_0_offline.ps1
-3. 「Ver1.0_配布ZIP作成_GUI.ps1」を右クリックして「PowerShellで実行」する。
+3. 「Start_Ver1.0_Package_GUI.cmd」をダブルクリックしてGUIを起動する。
+   （このCMDは制作者向けの起動補助だけ。完成配布ZIPには含めない。）
 4. 画面から①素材ZIP、②ビルド成果物ZIP、③保存先を選ぶ。
 5. 「配布用 Ver.1.0 ZIPを作成」を押す。
 
