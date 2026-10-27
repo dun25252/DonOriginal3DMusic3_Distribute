@@ -1,0 +1,43 @@
+DonOriginal3DMusic3 Ver.1.0 配布ZIP作成GUI（開発者用）
+※このTXT・PowerShell・過去CMD・ソースは、一般配布ZIPには入りません。
+
+準備するファイル
+① v1.48素材ZIP
+   DonOriginal3DMusic3_v1.48_StereoBRIR_GUI_Research.zip
+   513,598,015 bytesの原本。編集・展開は不要。
+② 正式なVer.1.0 EXE成果物ZIP
+   https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/40497577991
+   成功したWindowsビルドの「Artifacts」から
+   DonOriginal3DMusic3_v1.0_Exe_ONLY_NOT_DISTRIBUTION
+   をダウンロード。解凍せずそのZIPのまま指定してよい。
+   このActions成果物は7日で期限切れになります。
+
+起動方法
+1. このリポジトリの build/v1.0-repackage ブランチをZIPで入手して解凍する。
+2. build_tools にある次の2ファイルを同じ場所に置く。
+   ・Ver1.0_配布ZIP作成_GUI.ps1
+   ・package_v1_0_offline.ps1
+3. 「Ver1.0_配布ZIP作成_GUI.ps1」を右クリックして「PowerShellで実行」する。
+4. 画面から①素材ZIP、②ビルド成果物ZIP、③保存先を選ぶ。
+5. 「配布用 Ver.1.0 ZIPを作成」を押す。
+
+Windows PowerShell 5.1で処理します。.NET 8 SDK、Python、GitHub Actions課金は不要。
+GUIは別プロセスでZIPを作るため、進行中も画面の応答を維持します。
+v1.48のサイズとSHA-256、Ver.1.0 EXEのFileVersion/ProductVersion、EXE自己検査、
+必要なH3・IoSR・HTDemucs・FFmpeg・ライセンスの存在、完成ZIPの展開を確認します。
+途中で失敗した場合、未完成のZIPは削除します。
+
+出力ファイル：
+DonOriginal3DMusic3_v1.0_Windows.zip
+└ DonOriginal3DMusic3_v1.0
+  ├ DonOriginal3DMusic3.exe
+  ├ assets/
+  ├ tools/
+  ├ licenses/ （第三者ライセンス原文）
+  ├ README.txt （短い使い方）
+  └ THIRD_PARTY_NOTICES.txt
+
+重要：
+・この作成処理は実際の楽曲での音質・再生・4曲一括変換テストの代替ではありません。
+・一般公開前にFFmpegの当該ビルドのライセンス、ソース配布要件と他の依存ライセンスを確認してください。
+・配布版はVer.1.0を維持します。勝手にVer.1.1へ上げません。
