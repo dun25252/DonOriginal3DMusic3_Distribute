@@ -100,15 +100,13 @@ def verify_exe_version(exe: Path) -> None:
     """
     if os.name != "nt":
         return  # Linux CI uses synthetic binary fixtures; real release build is Windows.
-    ps = (
-        "$v=[Diagnostics.FileVersionInfo]::GetVersionInfo($args[0]);"
-        "Write-Output ($v.FileVersion + '|' + $v.ProductVersion)"
-    )
+    env = dict(os.environ)
+    env["DON_EXE_PATH"] = str(exe.resolve())
     proc = subprocess.run(
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-         f'$v=[Diagnostics.FileVersionInfo]::GetVersionInfo("{str(exe.resolve()).replace(chr(34), "")}");'
+         '$v=[Diagnostics.FileVersionInfo]::GetVersionInfo($env:DON_EXE_PATH);'
          'Write-Output ($v.FileVersion + "|" + $v.ProductVersion)'],
-        capture_output=True, text=True, encoding="utf-8", errors="replace"
+        capture_output=True, text=True, encoding="utf-8", errors="replace", env=env
     )
     if proc.returncode != 0:
         raise ValueError("Windows EXEのバージョン情報を確認できません: " + proc.stderr.strip())
