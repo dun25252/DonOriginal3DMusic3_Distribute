@@ -44,3 +44,25 @@
 - To finish, run Go/Python tests, compile the corrected x64 EXE, package with the user-provided v1.48 ZIP, and verify a real Windows run with 3D FLAC (including one m4a, same-title collision, and a batch of at least 4 songs). Release only after output naming and sound quality check.
 
 User-facing public README remains intentionally short and has no developer logs. The distribution repo is currently private until the owner decides to make it public.
+
+## 2026-10-27 追加監査：配布用の本体ソースは既に存在
+
+以前の記録の「Ver1.0 EXEに未統合」は現行ブランチについては不正確。現在の **C# .NET 8 WinForms 本体** は以下の4ファイルとして実在する：
+
+- `build_tools/distribution_app/Program.cs`：1画面GUI、複数曲リスト、進捗/中止、出力先・音量設定の保存。
+- `build_tools/distribution_app/DistributionAudioEngine.cs`：H3直接音でIoSR F/Bの実測ルームIRを一部差し替えて長い後続反射を残すレンダラ。ユーザー採用のRoomFirst B設計を元にし、A/B研究版の2本出力は行わず、1曲につき `3D変換先/曲名_v1.0.flac` だけを保存し、全中間PCM・ログは一時作業領域で処分。
+- `build_tools/distribution_app/StemSeparatorService.cs`：HTDemucs offline分離モデルの実行。
+- `build_tools/distribution_app/DonOriginal3DMusic3.csproj`：1.0.0.0のWindows x64単独GUI実行ファイルのビルド設定。
+
+**今回追加した安全修正**：
+1. `DistributionAudioEngine.ReconstructBuses` はHTDemucs Vocals/Bass と原音48kHz PCMの尺差が0.1秒を超える場合は変換を拒否する。従前の最大10%無音埋めによる声消失を防止。
+2. `Sanitize` でWindows予約名COM1–COM9/LPT1–LPT9等を扱う。
+3. `DistributionAudioEngine.SelfTestAsync` は実装内テストで、出力ルート/命名/同名曲連番/日本語曲名/Windows予約名/デバッグ非混入/Stem相補再構成/大きなStem尺差拒否/室内IR後段サンプル不変を確認する（本物のH3 SOFA/FFmpegによる音質テストとは異なる）。
+4. `Program.Main("--self-test")` により、コンソールのないGUI EXEでもテストを非表示・終了コードで実行できる。
+5. `build_tools/build_v1_0_windows.ps1` では、EXEの内部Version確認後にこの自己テストを **必ず実行**。失敗したらv1.48素材のパッケージ化に進まない。
+
+**2026-10-27 実行状況**：コンテナ実行基盤が `ClientError` を返す状態。ユーザー添付v1.48素材ZIP 513,598,015バイトをFiles経由で復元できたが、CRC/実素材検証は未完了。GitHub Actions workflowも runner_id=0、steps=[]、実テスト不実行。**GUI本体はソース統合済みだが.NETコンパイル済みではなく、v1.0 ZIPは未生成。**
+
+ビルド可能なWindows実行環境を復旧した後の唯一の次ゲート：
+`powershell -ExecutionPolicy Bypass -File ./build_tools/build_v1_0_windows.ps1 -V148Zip "<attached v1.48 ZIP absolute path>"`
+を実行してEXE実テスト/513MBソースSHA/ZIP CRCに成功すること。その後少なくとも4曲の実再生検査を行う。**バージョンは1.0固定**。
