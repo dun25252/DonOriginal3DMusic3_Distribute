@@ -52,7 +52,10 @@ class PackagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             zpath = Path(td) / "fixture.zip"
             with zipfile.ZipFile(zpath, "w") as w:
-                for path in pack.REQUIRED:
+                for path in pack.REQUIRED | {
+                    "licenses/HT-Demucs_LICENSE.txt",
+                    "licenses/demucs-onnx_LICENSE.txt",
+                }:
                     w.writestr(path, b"X" * 100)
             with zipfile.ZipFile(zpath) as z:
                 with self.assertRaisesRegex(ValueError, "ONNX"):
