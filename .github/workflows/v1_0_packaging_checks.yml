@@ -1,0 +1,36 @@
+name: Ver.1.0 distribution packaging policy checks
+
+on:
+  push:
+    branches:
+      - 'build/v1.0-repackage'
+    paths:
+      - 'build_tools/**'
+      - '.github/workflows/v1_0_packaging_checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy-and-output-naming:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Verify distribution asset allowlist and clean output policy
+        run: python -m unittest discover -s build_tools -p 'test_*.py' -v
+      - name: Verify Japanese-safe file naming and collision handling
+        working-directory: build_tools/outputlayout
+        run: go test -v ./...
+      - name: Boundary note
+        run: |
+          echo 'These are package-policy tests on synthetic assets.'
+          echo 'They DO NOT prove the v1.0 Windows GUI builds or real H3/HTDemucs rendering passes.'
+          echo 'Release ZIP must NOT be uploaded before actual full-song QA.'
