@@ -13,6 +13,8 @@ NEEDED = {
     "tools/ffmpeg/bin/ffprobe.exe",
     "tools/stem_separator/stem_separator.exe",
     "assets/hrtf/hutubs_pp3.sofa",
+    "licenses/ht-demucs_license.txt",
+    "licenses/demucs-onnx_license.txt",
 }
 for d in ["F", "B"]:
     for e in ["L", "R"]:
