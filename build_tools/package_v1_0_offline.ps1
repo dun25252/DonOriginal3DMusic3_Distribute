@@ -266,6 +266,7 @@ finally {
   Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+}
 catch {
   Write-Output ('PACKAGING_ERROR: ' + $_.Exception.Message)
   Write-Output ('ERROR_TYPE: ' + $_.Exception.GetType().FullName)
