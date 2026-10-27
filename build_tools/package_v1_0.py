@@ -13,6 +13,7 @@ import hashlib
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import subprocess
 import sys
 import tempfile
 import zipfile
@@ -92,6 +93,33 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def verify_exe_version(exe: Path) -> None:
+    """On Windows do not package an older prototype under the v1.0 name.
+
+    This is an EXE metadata check, not proof that output naming or audio QA passes.
+    """
+    if os.name != "nt":
+        return  # Linux CI uses synthetic binary fixtures; real release build is Windows.
+    ps = (
+        "$v=[Diagnostics.FileVersionInfo]::GetVersionInfo($args[0]);"
+        "Write-Output ($v.FileVersion + '|' + $v.ProductVersion)"
+    )
+    proc = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+         f'$v=[Diagnostics.FileVersionInfo]::GetVersionInfo("{str(exe.resolve()).replace(chr(34), "")}");'
+         'Write-Output ($v.FileVersion + "|" + $v.ProductVersion)'],
+        capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
+    if proc.returncode != 0:
+        raise ValueError("Windows EXEのバージョン情報を確認できません: " + proc.stderr.strip())
+    versions = proc.stdout.strip().split("|")
+    if len(versions) != 2 or versions[0] != "1.0.0.0" or versions[1] != "1.0.0.0":
+        raise ValueError(
+            "配布EXEはFileVersionとProductVersionの両方が1.0.0.0である必要があります: "
+            + proc.stdout.strip()
+        )
+
+
 def check_v148_archive(path: Path) -> None:
     if path.stat().st_size != V148_BYTES:
         raise ValueError(f"v1.48 ZIP size mismatch: {path.stat().st_size} bytes, expected {V148_BYTES}")
@@ -162,6 +190,7 @@ def pack(v148: Path, exe: Path, target: Path) -> None:
         raise FileNotFoundError("v1.48素材ZIPと修正済みVer.1.0.exeの両方が必要です")
     if exe.suffix.lower() != ".exe" or exe.stat().st_size < 100_000:
         raise ValueError("Provided GUI EXE is missing or unusually small")
+    verify_exe_version(exe)
     check_v148_archive(v148)
     target.mkdir(parents=True, exist_ok=True)
     final = target / OUTFILE
