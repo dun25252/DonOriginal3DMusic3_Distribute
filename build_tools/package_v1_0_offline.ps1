@@ -86,8 +86,8 @@ function Zip-CopyEntry($srcEntry, $dstArchive, [string]$name) {
   finally { $output.Dispose(); $input.Dispose() }
 }
 function Zip-Text([string]$text, $dstArchive, [string]$name, [bool]$withBom) {
-  $encoder = New-Object System.Text.UTF8Encoding($withBom)
-  $bytes = $encoder.GetPreamble() + $encoder.GetBytes($text)
+  $encoder = [Text.UTF8Encoding]::new($withBom)
+  [byte[]]$bytes = @($encoder.GetPreamble()) + @($encoder.GetBytes($text))
   $entry = $dstArchive.CreateEntry($name,[IO.Compression.CompressionLevel]::Optimal)
   $out = $entry.Open()
   try { $out.Write($bytes,0,$bytes.Length) }
@@ -199,7 +199,7 @@ all model dependencies and upstream attribution requirements.
     Write-Output 'STEP 5/6: 配布用ZIPを組み立て'
     if (Test-Path -LiteralPath $tempZip) { Remove-Item -LiteralPath $tempZip -Force }
     $stream = [IO.File]::Open($tempZip,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
-    $destZip = New-Object IO.Compression.ZipArchive($stream,[IO.Compression.ZipArchiveMode]::Create,$false)
+    $destZip = [IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create,$false)
     try {
       Zip-CopyFile $exe $destZip ($root+'/DonOriginal3DMusic3.exe')
       Zip-Text $readme $destZip ($root+'/README.txt') $true
