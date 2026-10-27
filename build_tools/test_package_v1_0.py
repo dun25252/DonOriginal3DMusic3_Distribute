@@ -11,7 +11,8 @@ import verify_v1_0 as verify
 
 
 def necessary():
-    return set(pack.REQUIRED) | {"assets/models/demucs_onnx_cache/demo.onnx"}
+    return set(pack.REQUIRED) | {"assets/models/demucs_onnx_cache/demo.onnx",
+        "licenses/HT-Demucs_LICENSE.txt", "licenses/demucs-onnx_LICENSE.txt"}
 
 
 class PackagingTests(unittest.TestCase):
