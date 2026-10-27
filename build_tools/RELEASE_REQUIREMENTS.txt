@@ -28,6 +28,7 @@ DonOriginal3DMusic3_v1.0_Windows.zip
   ├ assets/（v1.48の必要素材を抽出）
   ├ tools/（v1.48の必要実行素材を抽出）
   ├ README.txt（短い使い方）
+  ├ licenses/（HT-Demucs・demucs-onnx等の原ライセンス）
   └ THIRD_PARTY_NOTICES.txt（再配布のライセンス表記）
 
 【現在の作業範囲】
