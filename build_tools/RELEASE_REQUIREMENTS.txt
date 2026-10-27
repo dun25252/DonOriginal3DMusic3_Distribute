@@ -36,3 +36,14 @@ DonOriginal3DMusic3_v1.0_Windows.zip
 - 作業用ソースと検査コードは「build/v1.0-repackage」に保持。main/配布ZIPへは含めない。
 - 未完了：既存GUI EXEの出力フォルダー名・ファイル名・デバッグTXTの改修、v1.48本物ZIPの展開実検証、実Windows変換、完成バイナリ/ZIP。
 - 作業中にファイル処理環境でClientErrorが起き、ユーザー添付ZIPを直接開けていない。完成を偽って配布しない。
+
+【2026-10-27 再開時点の実装更新】
+・build_tools/outputlayout/outputlayout.go: Titleタグ優先の曲名決定、Windows禁止文字修正、同名(2)連番、3D変換先へFLACだけ保存の処理を実装。
+・build_tools/outputlayout/hybrid.go: v1.62 RoomFirstが生成したB_同じ部屋にH3直接音*.flacのみ採用。A版や3D音響検査TXTは一時作業フォルダー内で隔離・破棄。
+・build_tools/outputlayout/*_test.go: 曲名・日本語・衝突・B版選択・Debug非混入の単体試験コード追加。
+・build_tools/test_package_v1_0.py: 小容量模擬ZIPで配布ファイルの除外・重複検知・素材欠落検知・日時別サブフォルダー不許可をテストするコード追加。
+・.github/workflows/v1_0_packaging_checks.yml: GitHub ActionsのGo/Python QAを定義。ただしランナーが割り当てられず未実行、成功とは扱わない。
+・build_tools/package_v1_0.py: 実パッケージ化時、Windows側のEXE FileVersion/ProductVersionが両方1.0.0.0であることを強制。ffprobe.exeも必須にした。
+・ユーザーのアップロード元v1.48 ZIP（513,598,015byte）をFiles経由で作業領域へ復元済み。サイズはリリースメタデータと一致。ファイル処理のコンテナ実行がClientErrorを返し、実際のZIP内部CRC/ハッシュ照合はまだできていない。
+・EXE本体は未修正・未ビルド。修正済み出力レイヤーを実際のv1.64 Go/PowerShell GUIコードへ組み込み、1.0.0.0のPEで再コンパイルする必要あり。
+・v1.48素材を配布ZIPへ組み込む作業も未実施。実体のないsandboxリンクや未検証のGitHub Releaseを公開しない。
