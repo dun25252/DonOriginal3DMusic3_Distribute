@@ -34,7 +34,8 @@ class PackagingTests(unittest.TestCase):
             exe = folder / "Ver1.0.exe"
             exe.write_bytes(b"MZ" + b"\0" * 100_200)
             out = folder / "output"
-            with patch.object(pack, "check_v148_archive", return_value=None):
+            with patch.object(pack, "check_v148_archive", return_value=None), \
+                 patch.object(pack, "verify_exe_version", return_value=None):
                 pack.pack(raw, exe, out)
             archive = out / pack.OUTFILE
             verify.check_zip(archive)
