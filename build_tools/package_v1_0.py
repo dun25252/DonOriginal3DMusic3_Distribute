@@ -142,7 +142,9 @@ def relative_resource_path(member_name: str) -> str | None:
     dst = "/".join(raw[k:])
     low = dst.lower()
     if low.startswith("assets/brir/"):
-        return dst if low.endswith(".wav") else None
+        # Distribution v1.0 uses exactly F/B room and F left/right side.
+        # All other old experimental directional BRIRs remain in the v1.48 source ZIP.
+        return dst if low in {p.lower() for p in REQUIRED} else None
     if low == "assets/hrtf/hutubs_pp3.sofa":
         return "assets/hrtf/hutubs_pp3.sofa"
     if low.startswith("assets/models/demucs_onnx_cache/"):
