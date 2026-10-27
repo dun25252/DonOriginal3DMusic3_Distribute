@@ -65,7 +65,7 @@ IoSR Listening Room BRIR, University of Surrey / Jon Francombe, 2017
   CC BY 4.0
 FFmpeg: https://ffmpeg.org/legal.html (build-dependent license terms)
 Demucs/HTDemucs: license terms apply to the particular distributed model.
-Other binary components: follow their bundled upstream licenses.
+Other binary components: follow their bundled upstream licenses.\nThe original HT-Demucs/demucs-onnx MIT license texts are included in licenses/.
 
 The original measured responses are not re-measured by this application.
 Please keep applicable upstream LICENSE/COPYING files in tools when supplied.
