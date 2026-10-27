@@ -205,8 +205,20 @@ internal static class DistributionAudioEngine
     private static void ReconstructBuses(string source,string vocals,string bass,
         string vocalOut,string bassOut,string backOut,CancellationToken token)
     {
-        if (new FileInfo(source).Length % 8 != 0)
-            throw new InvalidDataException("原音PCMがステレオfloat32ではありません");
+        long originalBytes = new FileInfo(source).Length;
+        long vocalBytes = new FileInfo(vocals).Length;
+        long bassBytes = new FileInfo(bass).Length;
+        if(originalBytes % 8 != 0 || vocalBytes % 8 != 0 || bassBytes % 8 != 0)
+            throw new InvalidDataException("原音/分離StemのPCMがステレオfloat32ではありません");
+        if(originalBytes <= 0 || vocalBytes <= 0 || bassBytes <= 0)
+            throw new InvalidDataException("原音/分離StemのPCMが空です");
+        // Per-track duration drift beyond 0.10s is NOT safe to pad with silence:
+        // that would erase vocals or bass across an entire musical passage.
+        const long allowedEndDrift = Rate * 2L * sizeof(float) / 10;
+        if(Math.Abs(originalBytes-vocalBytes)>allowedEndDrift ||
+           Math.Abs(originalBytes-bassBytes)>allowedEndDrift)
+            throw new InvalidDataException(
+                "HTDemucs分離Stemと原曲の長さが0.1秒以上異なります。音声欠落を防ぐため変換を停止します。");
         using var a=File.OpenRead(source);
         using var b=File.OpenRead(vocals);
         using var c=File.OpenRead(bass);
@@ -262,7 +274,9 @@ internal static class DistributionAudioEngine
             if(got==0)break;
             offset+=got;
         }
-        if(offset < size * 0.9)
+        // Initial duration sanity is enforced in ReconstructBuses. Only the
+        // last <=0.10s residual padding is now permitted here.
+        if(offset < size - Rate * 2 * sizeof(float) / 10)
             throw new InvalidDataException("分離Stemと原音の尺が異なります");
     }
 
@@ -336,7 +350,10 @@ internal static class DistributionAudioEngine
         if(safe.Length>96)safe=safe[..96].Trim(' ','.');
         // Win32 reserved device names cannot be used as filenames.
         string stem=safe.Split('.')[0].ToUpperInvariant();
-        if(new[]{"CON","PRN","AUX","NUL","COM1","LPT1"}.Contains(stem))safe="_"+safe;
+        if(new[]{"CON","PRN","AUX","NUL",
+                 "COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9",
+                 "LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"}.Contains(stem))
+            safe="_"+safe;
         return safe;
     }
 
