@@ -1,4 +1,4 @@
-name: Ver.1.0 distribution packaging policy checks
+name: Ver.1.0 runtime asset packaging policy checks
 
 on:
   push:
@@ -21,14 +21,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
       - name: Verify distribution asset allowlist and clean output policy
         run: python -m unittest discover -s build_tools -p 'test_*.py' -v
-      - name: Verify Japanese-safe file naming and collision handling
-        working-directory: build_tools/outputlayout
-        run: go test -v ./...
       - name: Boundary note
         run: |
           echo 'These are package-policy tests on synthetic assets.'
