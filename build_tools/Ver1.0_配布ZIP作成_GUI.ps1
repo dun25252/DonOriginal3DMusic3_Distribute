@@ -17,11 +17,11 @@ $panel = New-Object System.Windows.Forms.TableLayoutPanel
 $panel.Dock = 'Fill'
 $panel.ColumnCount = 3
 $panel.RowCount = 7
-$panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([Windows.Forms.SizeType]::Absolute,210)))
-$panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([Windows.Forms.SizeType]::Percent,100)))
-$panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([Windows.Forms.SizeType]::Absolute,120)))
+$panel.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Absolute,210))
+$panel.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Percent,100))
+$panel.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Absolute,120))
 foreach($h in @(55,51,51,51,53,37)) {
-  $panel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([Windows.Forms.SizeType]::Absolute,$h)))
+  $panel.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,$h))
 }
 $panel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([Windows.Forms.SizeType]::Percent,100)))
 $script:gui.Controls.Add($panel)
