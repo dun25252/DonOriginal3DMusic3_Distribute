@@ -45,6 +45,9 @@ internal sealed class DistributionSettings
     public decimal VoiceGain {get;set;} = 1m;
     public decimal BackingGain {get;set;} = -0.5m;
     public bool DoubleDiscNumber {get;set;} = true;
+    public decimal LateRoomPercent {get;set;} = 45m;
+    public bool ManualDiscNumber {get;set;} = false;
+    public decimal DiscNumberOverride {get;set;} = 1m;
     private static string ConfigFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DonOriginal3DMusic3", "distribution_settings_v1.0.json");
@@ -78,6 +81,15 @@ internal sealed class DistributionForm : Form
     };
     private readonly NumericUpDown _backing = new() {
         Minimum=-4,Maximum=3,DecimalPlaces=1,Increment=.5m,Width=64
+    };
+    private readonly NumericUpDown _roomPercent = new() {
+        Minimum=20,Maximum=100,Increment=5,DecimalPlaces=0,Width=65,Value=45
+    };
+    private readonly CheckBox _manualDisc = new() {
+        AutoSize=true,Text="元ディスク番号を手動指定"
+    };
+    private readonly NumericUpDown _manualDiscValue = new() {
+        Minimum=1,Maximum=99,DecimalPlaces=0,Width=65,Enabled=false
     };
     private readonly CheckBox _doubleDisc = new() {
         AutoSize=true,Checked=true,
@@ -120,6 +132,10 @@ internal sealed class DistributionForm : Form
         _vocal.Value=Math.Clamp(_settings.VoiceGain,_vocal.Minimum,_vocal.Maximum);
         _backing.Value=Math.Clamp(_settings.BackingGain,_backing.Minimum,_backing.Maximum);
         _doubleDisc.Checked=_settings.DoubleDiscNumber;
+        _roomPercent.Value=Math.Clamp(_settings.LateRoomPercent,_roomPercent.Minimum,_roomPercent.Maximum);
+        _manualDisc.Checked=_settings.ManualDiscNumber;
+        _manualDiscValue.Value=Math.Clamp(_settings.DiscNumberOverride,_manualDiscValue.Minimum,_manualDiscValue.Maximum);
+        _manualDiscValue.Enabled=_doubleDisc.Checked && _manualDisc.Checked;
         Controls.Add(BuildLayout());
         _add.Click+=(_,_)=>AddFiles();
         _folder.Click+=(_,_)=>AddFolder();
@@ -131,7 +147,18 @@ internal sealed class DistributionForm : Form
         _output.Leave+=(_,_)=>SaveSettings();
         _vocal.ValueChanged+=(_,_)=>SaveSettings();
         _backing.ValueChanged+=(_,_)=>SaveSettings();
-        _doubleDisc.CheckedChanged+=(_,_)=>SaveSettings();
+        _doubleDisc.CheckedChanged+=(_,_)=>{
+            _manualDisc.Enabled=_doubleDisc.Checked;
+            _manualDiscValue.Enabled=_doubleDisc.Checked && _manualDisc.Checked;
+            SaveSettings();
+        };
+        _roomPercent.ValueChanged+=(_,_)=>SaveSettings();
+        _manualDisc.CheckedChanged+=(_,_)=>{
+            _manualDiscValue.Enabled=_doubleDisc.Checked && _manualDisc.Checked;
+            SaveSettings();
+        };
+        _manualDiscValue.ValueChanged+=(_,_)=>SaveSettings();
+        _manualDisc.Enabled=_doubleDisc.Checked;
         FormClosing+=(_,e)=>{if(_busy){e.Cancel=true;_cts?.Cancel();}else SaveSettings();};
         DragEnter+=(s,e)=>{
             e.Effect=e.Data?.GetDataPresent(DataFormats.FileDrop)==true?
@@ -165,7 +192,7 @@ internal sealed class DistributionForm : Form
         root.Controls.Add(_songs,0,2);
 
         var bottom=new TableLayoutPanel {
-            Dock=DockStyle.Fill,AutoSize=true,ColumnCount=3,RowCount=4,
+            Dock=DockStyle.Fill,AutoSize=true,ColumnCount=3,RowCount=5,
             Margin=new Padding(0,10,0,6)
         };
         bottom.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -184,6 +211,8 @@ internal sealed class DistributionForm : Form
         bottom.Controls.Add(gains,0,1);bottom.SetColumnSpan(gains,3);
         var discOptions=new FlowLayoutPanel{AutoSize=true,WrapContents=true,Dock=DockStyle.Fill};
         discOptions.Controls.Add(_doubleDisc);
+        discOptions.Controls.Add(_manualDisc);
+        discOptions.Controls.Add(_manualDiscValue);
         discOptions.Controls.Add(new Label{
             Text="元音源に番号がない場合は変更しません。",AutoSize=true,
             ForeColor=SystemColors.GrayText,Margin=new Padding(12,5,0,0)
@@ -194,7 +223,14 @@ internal sealed class DistributionForm : Form
             AutoSize=true,ForeColor=SystemColors.GrayText,
             Margin=new Padding(0,4,0,5)
         };
-        bottom.Controls.Add(hint,0,3);bottom.SetColumnSpan(hint,3);
+        var roomOptions=new FlowLayoutPanel{AutoSize=true,WrapContents=true,Dock=DockStyle.Fill};
+        roomOptions.Controls.Add(new Label{Text="室内反射 (%)",AutoSize=true,
+            Margin=new Padding(0,6,5,0)});
+        roomOptions.Controls.Add(_roomPercent);
+        roomOptions.Controls.Add(new Label{Text="45: 明瞭度重視 / 100: 従来の響き",
+            AutoSize=true,ForeColor=SystemColors.GrayText,Margin=new Padding(10,6,0,0)});
+        bottom.Controls.Add(roomOptions,0,3);bottom.SetColumnSpan(roomOptions,3);
+        bottom.Controls.Add(hint,0,4);bottom.SetColumnSpan(hint,3);
         root.Controls.Add(bottom,0,3);
 
         var progress=new TableLayoutPanel {Dock=DockStyle.Fill,AutoSize=true,
@@ -216,6 +252,9 @@ internal sealed class DistributionForm : Form
         _settings.VoiceGain=_vocal.Value;
         _settings.BackingGain=_backing.Value;
         _settings.DoubleDiscNumber=_doubleDisc.Checked;
+        _settings.LateRoomPercent=_roomPercent.Value;
+        _settings.ManualDiscNumber=_manualDisc.Checked;
+        _settings.DiscNumberOverride=_manualDiscValue.Value;
         _settings.Save();
     }
 
@@ -288,7 +327,11 @@ internal sealed class DistributionForm : Form
     {
         _busy=value;
         foreach(Control c in new Control[]{_add,_folder,_remove,_clear,_start,
-            _browse,_songs,_output,_vocal,_backing,_doubleDisc})c.Enabled=!value;
+            _browse,_songs,_output,_vocal,_backing,_doubleDisc,_roomPercent,_manualDisc,_manualDiscValue})c.Enabled=!value;
+        if(!value) {
+            _manualDisc.Enabled=_doubleDisc.Checked;
+            _manualDiscValue.Enabled=_doubleDisc.Checked && _manualDisc.Checked;
+        }
         _cancel.Enabled=value;
     }
 
@@ -316,6 +359,7 @@ internal sealed class DistributionForm : Form
         SetBusy(true);
         _cts=new CancellationTokenSource();
         int succeeded=0;var failures=new List<string>();
+        var discReports=new List<string>();
         _bar.Value=0;
         try {
             for(int i=0;i<paths.Length;i++) {
@@ -328,9 +372,15 @@ internal sealed class DistributionForm : Form
                     _bar.Value=Math.Clamp(percent,0,100);
                 });
                 try {
+                    var discProgress=new Progress<string>(message=>{
+                        _status.Text=message;
+                        discReports.Add(message);
+                    });
                     await DistributionAudioEngine.ConvertAsync(
                         file,output,(double)_vocal.Value,(double)_backing.Value,
-                        _doubleDisc.Checked,progress,_cts.Token);
+                        (double)_roomPercent.Value,_doubleDisc.Checked,
+                        _manualDisc.Checked ? (int)_manualDiscValue.Value : null,
+                        progress,discProgress,_cts.Token);
                     succeeded++;
                 }catch(OperationCanceledException){break;}
                 catch(Exception ex){failures.Add(Path.GetFileName(file)+": "+ex.Message);}
@@ -343,6 +393,7 @@ internal sealed class DistributionForm : Form
                 MessageBoxButtons.OK,MessageBoxIcon.Warning);
             else if(!_cts.IsCancellationRequested)
                 MessageBox.Show(this,succeeded+"曲を変換しました。\n\n"+
+                    (discReports.Count==0?"":string.Join("\n",discReports.Take(8))+"\n\n")+
                     Path.Combine(output,"3D変換先"),"3D音楽変換",
                     MessageBoxButtons.OK,MessageBoxIcon.Information);
         }

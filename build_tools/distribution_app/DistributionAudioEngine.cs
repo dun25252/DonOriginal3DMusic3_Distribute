@@ -170,8 +170,45 @@ internal static class DistributionAudioEngine
         return (l, r);
     }
 
+    private static void ScaleLateRoomReflections(float[] left,float[] right,double percent)
+    {
+        if(!double.IsFinite(percent) || percent<20 || percent>100)
+            throw new ArgumentOutOfRangeException(nameof(percent));
+        if(left.Length!=right.Length || left.Length<Rate/4)
+            throw new InvalidDataException("実測室内IRの左右長が不正です");
+        if(percent>=100)return;
+        // Keep H3 direct and first 18 ms of measured early room.
+        // Attenuate only later reflections with equal gains on both ears.
+        int onset=Math.Min(FirstDirectPeak(left),FirstDirectPeak(right));
+        int start=onset+(int)(Rate*0.018);
+        int end=onset+(int)(Rate*0.105);
+        double target=percent/100d;
+        for(int i=start;i<left.Length;i++) {
+            double t=Math.Clamp((i-start)/(double)(end-start),0,1);
+            double smooth=t*t*(3-2*t);
+            float g=(float)(1-(1-target)*smooth);
+            left[i]*=g;right[i]*=g;
+        }
+    }
+
+    private static async Task<(string L,string R)> BuildSideRoomIr(
+        string temp,string side,double percent,CancellationToken token)
+    {
+        string lpcm=Path.Combine(temp,"side_"+side+"_L.f32");
+        string rpcm=Path.Combine(temp,"side_"+side+"_R.f32");
+        await DecodeAsync(Ir("F",side+"_room","L"),lpcm,1,token);
+        await DecodeAsync(Ir("F",side+"_room","R"),rpcm,1,token);
+        float[] left=ReadFloat(lpcm),right=ReadFloat(rpcm);
+        ScaleLateRoomReflections(left,right,percent);
+        string lfile=Path.Combine(temp,"side_"+side+"_L.wav");
+        string rfile=Path.Combine(temp,"side_"+side+"_R.wav");
+        WriteWavMono(lfile,left);WriteWavMono(rfile,right);
+        return (lfile,rfile);
+    }
+
     private static async Task<(string L,string R)> BuildHybridIr(
-        string temp, string direction, int angle, CancellationToken token)
+        string temp, string direction, int angle, double roomPercent,
+        CancellationToken token)
     {
         string mono = Path.Combine(temp, "test_impulse.f32");
         if (!File.Exists(mono)) {
@@ -195,6 +232,7 @@ internal static class DistributionAudioEngine
         await DecodeAsync(Ir(direction, "room", "L"), originalL, 1, token);
         await DecodeAsync(Ir(direction, "room", "R"), originalR, 1, token);
         var both = ReplaceDirect(ReadFloat(originalL), ReadFloat(originalR), ReadFloat(hrtfF32));
+        ScaleLateRoomReflections(both.L,both.R,roomPercent);
         string outL = Path.Combine(temp, "v1.0_" + direction + "_Hybrid_L.wav");
         string outR = Path.Combine(temp, "v1.0_" + direction + "_Hybrid_R.wav");
         WriteWavMono(outL, both.L);
@@ -413,7 +451,8 @@ internal static class DistributionAudioEngine
     private static int? ReadDiscNumberTags(JsonElement tags)
     {
         if(tags.ValueKind!=JsonValueKind.Object)return null;
-        foreach(string preferredKey in new[]{"discnumber","disc","disc_number"})
+        foreach(string preferredKey in new[]{"discnumber","disc","disc_number",
+            "disknumber","disk","part_of_set","tpos"})
             foreach(var field in tags.EnumerateObject())
                 if(field.Name.Equals(preferredKey,StringComparison.OrdinalIgnoreCase) &&
                    field.Value.ValueKind==JsonValueKind.String)
@@ -599,6 +638,22 @@ internal static class DistributionAudioEngine
             Require(DiscMetadataArgs(2).SequenceEqual(new[]{
                 "-metadata","disc=2","-metadata","discnumber=2"}),
                 "FLAC disc metadata rewrite");
+            var roomL=new float[Rate],roomR=new float[Rate];
+            roomL[480]=0.8f;roomR[480]=0.8f;
+            roomL[960]=0.5f;roomR[960]=0.5f;
+            roomL[12000]=0.4f;roomR[12000]=0.4f;
+            ScaleLateRoomReflections(roomL,roomR,45);
+            Require(Math.Abs(roomL[960]-0.5f)<0.00001 &&
+                    Math.Abs(roomL[12000]-0.18f)<0.00001 &&
+                    Math.Abs(roomR[12000]-0.18f)<0.00001,
+                "early acoustic response preserved and late room scaled");
+            var originalTail=new float[Rate],originalTailR=new float[Rate];
+            originalTail[480]=0.8f;originalTailR[480]=0.8f;
+            originalTail[12000]=0.4f;originalTailR[12000]=0.4f;
+            ScaleLateRoomReflections(originalTail,originalTailR,100);
+            Require(originalTail[12000]==0.4f && originalTailR[12000]==0.4f,
+                "100 percent preserves original room");
+
 
             using(var formatTitle=JsonDocument.Parse(
                 """{"format":{"tags":{"TITLE":"Cats are dangerous"}}}"""))
@@ -720,11 +775,17 @@ internal static class DistributionAudioEngine
     }
 
     public static async Task<string> ConvertAsync(string input,string outputBase,
-        double voiceDb,double backingDb,bool doubleDiscNumber,
-        IProgress<int>? progress,CancellationToken token)
+        double voiceDb,double backingDb,double roomPercent,
+        bool doubleDiscNumber,int? manualDisc,
+        IProgress<int>? progress,IProgress<string>? discProgress,
+        CancellationToken token)
     {
         if(!File.Exists(input))throw new FileNotFoundException("変換元がありません",input);
         if(string.IsNullOrWhiteSpace(outputBase))throw new ArgumentException("保存先が空です");
+        if(!double.IsFinite(roomPercent) || roomPercent<20 || roomPercent>100)
+            throw new ArgumentOutOfRangeException(nameof(roomPercent));
+        if(manualDisc.HasValue && (manualDisc.Value<1 || manualDisc.Value>99))
+            throw new ArgumentOutOfRangeException(nameof(manualDisc));
         if(voiceDb<-3 || voiceDb>6 || backingDb<-4 || backingDb>3)
             throw new ArgumentOutOfRangeException("音量補正設定が範囲外です");
         string[] absent=MissingAssets().ToArray();
@@ -748,12 +809,13 @@ internal static class DistributionAudioEngine
             string va=Path.Combine(temp,"va.f32"),ba=Path.Combine(temp,"ba.f32"),back=Path.Combine(temp,"back.f32");
             await Task.Run(() => ReconstructBuses(source,voc,bass,va,ba,back,token),token);
             progress?.Report(51);
-            var front=await BuildHybridIr(temp,"F",0,token);
-            var rear=await BuildHybridIr(temp,"B",180,token);
+            var front=await BuildHybridIr(temp,"F",0,roomPercent,token);
+            var rear=await BuildHybridIr(temp,"B",180,roomPercent,token);
+            var sideLeft=await BuildSideRoomIr(temp,"sideL",roomPercent,token);
+            var sideRight=await BuildSideRoomIr(temp,"sideR",roomPercent,token);
             progress?.Report(59);
             var ir = new[] {front.L,front.R,rear.L,rear.R,
-                Ir("F","sideL_room","L"),Ir("F","sideL_room","R"),
-                Ir("F","sideR_room","L"),Ir("F","sideR_room","R")};
+                sideLeft.L,sideLeft.R,sideRight.L,sideRight.R};
             string[] args = {
                 "-hide_banner","-loglevel","error","-y",
                 "-f","f32le","-ar","48000","-ac","2","-i",va,
@@ -785,9 +847,11 @@ internal static class DistributionAudioEngine
                 throw new InvalidDataException("全曲のピーク/長さ検査に失敗");
             progress?.Report(92);
             int? convertedDiscNumber=null;
+            int? originalDiscNumber=null;
             if(doubleDiscNumber)
             {
-                int? originalDiscNumber=await ReadSourceDiscNumberAsync(input,token);
+                originalDiscNumber=manualDisc ??
+                    await ReadSourceDiscNumberAsync(input,token);
                 convertedDiscNumber=DiscNumberAfterConversion(originalDiscNumber,true);
             }
             string tempFlac=Path.Combine(temp,"rendered.flac");
@@ -809,6 +873,13 @@ internal static class DistributionAudioEngine
                await ReadSourceDiscNumberAsync(tempFlac,token)!=convertedDiscNumber)
                 throw new InvalidDataException(
                     "ディスク番号が変換後のFLACに反映されませんでした");
+            string discResult=!doubleDiscNumber ?
+                "ディスク番号: 変更なし" :
+                convertedDiscNumber.HasValue ?
+                    "ディスク番号: "+originalDiscNumber+" → "+
+                    convertedDiscNumber+(manualDisc.HasValue?"（手動元番号）":"") :
+                    "ディスク番号: 元曲に番号がありません。必要なら手動指定してください";
+            discProgress?.Report(Path.GetFileName(input)+" / "+discResult);
             string result=await MoveOneOutput(tempFlac,input,outputBase,token);
             progress?.Report(100);
             return result;
