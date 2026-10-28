@@ -38,3 +38,20 @@ EXEのFileVersion / ProductVersionはどちらもVer.1.0のままです。実曲
 旧版に存在した、変換時に元のディスク番号を2倍にする処理を復元しました。GUIでオン／オフでき、設定も保存されます。初期状態はオンです（例：1→2、2→4）。元音源にディスク番号がない場合は変更しません。変換完了前に出力FLACのタグを検査します。
 
 新しいWindowsビルドは https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/40661531701 で成功しました。これはEXE単体のビルド検証であり、GitHubのCode ZIPには完成アプリ・音響素材は含まれません。実際の楽曲の一括変換試験は未実施です。
+
+## Ver.1.0 最新修正（明瞭度・ディスク番号）
+
+2026-10-28 の修正版は以下の問題に対応しました。
+
+- 室内反射を20〜100%で調整。初期値45%は直接音の明瞭さ重視、100%は以前と同等の反射量。
+- ディスク番号を2倍にする処理を自動・手動指定で実施し、最終FLACで確認。元の1→2、2→4。
+- 日本語タイトルのUTF-8読み込み修正も維持。
+
+[最新Windows EXEのビルド成功記録とダウンロード](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/40669819465)
+
+GitHub Actions の **Artifacts** にある `DonOriginal3DMusic3_v1.0_Exe_ONLY_NOT_DISTRIBUTION` をダウンロードしてください。**これはEXEのみ**で、音響素材のない新規インストールには使えません。
+
+既存の完全版を解凍した `DonOriginal3DMusic3_v1.0` フォルダー内で、同名の `DonOriginal3DMusic3.exe` を新しいEXEに上書きしてください。`assets`、`tools`、`licenses` はそのまま使用します。友人へ渡す場合は、更新したこのフォルダー全体をZIPにしてください。
+
+※ この修正版はWindows EXEビルドと組込み自己検査に成功していますが、実際の楽曲を使った音質A/Bやディスク番号の端末別互換性検証は未完了です。第三者ソフトの再配布条件も守ってください。
+
