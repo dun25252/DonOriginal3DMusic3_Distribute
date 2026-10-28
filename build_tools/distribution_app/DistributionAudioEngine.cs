@@ -638,7 +638,7 @@ internal static class DistributionAudioEngine
             Require(DiscMetadataArgs(2).SequenceEqual(new[]{
                 "-metadata","disc=2","-metadata","discnumber=2"}),
                 "FLAC disc metadata rewrite");
-            var roomL=new float[Rate],roomR=new float[Rate];
+            float[] roomL=new float[Rate],roomR=new float[Rate];
             roomL[480]=0.8f;roomR[480]=0.8f;
             roomL[960]=0.5f;roomR[960]=0.5f;
             roomL[12000]=0.4f;roomR[12000]=0.4f;
@@ -647,7 +647,7 @@ internal static class DistributionAudioEngine
                     Math.Abs(roomL[12000]-0.18f)<0.00001 &&
                     Math.Abs(roomR[12000]-0.18f)<0.00001,
                 "early acoustic response preserved and late room scaled");
-            var originalTail=new float[Rate],originalTailR=new float[Rate];
+            float[] originalTail=new float[Rate],originalTailR=new float[Rate];
             originalTail[480]=0.8f;originalTailR[480]=0.8f;
             originalTail[12000]=0.4f;originalTailR[12000]=0.4f;
             ScaleLateRoomReflections(originalTail,originalTailR,100);
