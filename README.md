@@ -6,7 +6,7 @@
 
 **このGitHubの「Code → Download ZIP」はソフト本体ではありません。**
 
-配布用の `DonOriginal3DMusic3_v1.0_Windows.zip`（441,658,699バイト）はまだGitHub Releaseに登録されていません。登録されるまではGitHubからEXE入りの配布ZIPをダウンロードできません。
+UTF-8曲名修正済みの配布用 `DonOriginal3DMusic3_v1.0_Windows_UTF8fix.zip`（441,875,652バイト）はまだGitHub Releaseに登録されていません。登録されるまではGitHubからEXE入りの配布ZIPをダウンロードできません。
 
 配布ZIPを用意できたら、[Releases](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/releases) に置きます。
 
@@ -25,4 +25,10 @@
 - 元の音楽ファイルは変更しません。
 - 実曲での最終動作確認および第三者ソフトウェアの再配布条件の確認は未完了です。
 
-配布ZIPのSHA-256：`d9317c9aba119543ab1df61b087517e7f44e6c02627bf852a974074f2113e6f7`
+配布ZIPのSHA-256：`06978d1997d696626c8497695162249a94c2758338aa761b260995a939a9cc49`
+
+### 日本語曲名の修正（Ver.1.0）
+
+FFprobeのUTF-8出力をWindowsのCP932として読み取っていたため、日本語タイトルが文字化けする問題を修正しました。
+EXEのFileVersion / ProductVersionはどちらもVer.1.0のままです。実曲「さよならエンドロール」のFLAC TITLEは正常なUTF-8であることを確認しています。
+現在、完成ZIP本体はこのGitHubのCodeダウンロードには含まれていません。直接共有した完全版ZIPをご利用ください。
