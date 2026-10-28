@@ -44,6 +44,7 @@ internal sealed class DistributionSettings
     public string OutputBase {get;set;} = Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
     public decimal VoiceGain {get;set;} = 1m;
     public decimal BackingGain {get;set;} = -0.5m;
+    public bool DoubleDiscNumber {get;set;} = true;
     private static string ConfigFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DonOriginal3DMusic3", "distribution_settings_v1.0.json");
@@ -77,6 +78,10 @@ internal sealed class DistributionForm : Form
     };
     private readonly NumericUpDown _backing = new() {
         Minimum=-4,Maximum=3,DecimalPlaces=1,Increment=.5m,Width=64
+    };
+    private readonly CheckBox _doubleDisc = new() {
+        AutoSize=true,Checked=true,
+        Text="ディスク番号を2倍にする（旧版仕様：1→2、2→4）"
     };
     private readonly ProgressBar _bar = new() {Dock=DockStyle.Fill,Minimum=0,Maximum=100};
     private readonly Label _status = new() {
@@ -114,6 +119,7 @@ internal sealed class DistributionForm : Form
         _output.Text=_settings.OutputBase;
         _vocal.Value=Math.Clamp(_settings.VoiceGain,_vocal.Minimum,_vocal.Maximum);
         _backing.Value=Math.Clamp(_settings.BackingGain,_backing.Minimum,_backing.Maximum);
+        _doubleDisc.Checked=_settings.DoubleDiscNumber;
         Controls.Add(BuildLayout());
         _add.Click+=(_,_)=>AddFiles();
         _folder.Click+=(_,_)=>AddFolder();
@@ -125,6 +131,7 @@ internal sealed class DistributionForm : Form
         _output.Leave+=(_,_)=>SaveSettings();
         _vocal.ValueChanged+=(_,_)=>SaveSettings();
         _backing.ValueChanged+=(_,_)=>SaveSettings();
+        _doubleDisc.CheckedChanged+=(_,_)=>SaveSettings();
         FormClosing+=(_,e)=>{if(_busy){e.Cancel=true;_cts?.Cancel();}else SaveSettings();};
         DragEnter+=(s,e)=>{
             e.Effect=e.Data?.GetDataPresent(DataFormats.FileDrop)==true?
@@ -158,7 +165,7 @@ internal sealed class DistributionForm : Form
         root.Controls.Add(_songs,0,2);
 
         var bottom=new TableLayoutPanel {
-            Dock=DockStyle.Fill,AutoSize=true,ColumnCount=3,RowCount=3,
+            Dock=DockStyle.Fill,AutoSize=true,ColumnCount=3,RowCount=4,
             Margin=new Padding(0,10,0,6)
         };
         bottom.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -175,12 +182,19 @@ internal sealed class DistributionForm : Form
             Margin=new Padding(18,6,5,0)});
         gains.Controls.Add(_backing);
         bottom.Controls.Add(gains,0,1);bottom.SetColumnSpan(gains,3);
+        var discOptions=new FlowLayoutPanel{AutoSize=true,WrapContents=true,Dock=DockStyle.Fill};
+        discOptions.Controls.Add(_doubleDisc);
+        discOptions.Controls.Add(new Label{
+            Text="元音源に番号がない場合は変更しません。",AutoSize=true,
+            ForeColor=SystemColors.GrayText,Margin=new Padding(12,5,0,0)
+        });
+        bottom.Controls.Add(discOptions,0,2);bottom.SetColumnSpan(discOptions,3);
         var hint=new Label{
             Text="変換後の音源は保存先の「3D変換先」にまとめて保存されます。",
             AutoSize=true,ForeColor=SystemColors.GrayText,
             Margin=new Padding(0,4,0,5)
         };
-        bottom.Controls.Add(hint,0,2);bottom.SetColumnSpan(hint,3);
+        bottom.Controls.Add(hint,0,3);bottom.SetColumnSpan(hint,3);
         root.Controls.Add(bottom,0,3);
 
         var progress=new TableLayoutPanel {Dock=DockStyle.Fill,AutoSize=true,
@@ -201,6 +215,7 @@ internal sealed class DistributionForm : Form
         _settings.OutputBase=_output.Text.Trim();
         _settings.VoiceGain=_vocal.Value;
         _settings.BackingGain=_backing.Value;
+        _settings.DoubleDiscNumber=_doubleDisc.Checked;
         _settings.Save();
     }
 
@@ -273,7 +288,7 @@ internal sealed class DistributionForm : Form
     {
         _busy=value;
         foreach(Control c in new Control[]{_add,_folder,_remove,_clear,_start,
-            _browse,_songs,_output,_vocal,_backing})c.Enabled=!value;
+            _browse,_songs,_output,_vocal,_backing,_doubleDisc})c.Enabled=!value;
         _cancel.Enabled=value;
     }
 
@@ -315,7 +330,7 @@ internal sealed class DistributionForm : Form
                 try {
                     await DistributionAudioEngine.ConvertAsync(
                         file,output,(double)_vocal.Value,(double)_backing.Value,
-                        progress,_cts.Token);
+                        _doubleDisc.Checked,progress,_cts.Token);
                     succeeded++;
                 }catch(OperationCanceledException){break;}
                 catch(Exception ex){failures.Add(Path.GetFileName(file)+": "+ex.Message);}
