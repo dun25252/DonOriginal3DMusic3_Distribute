@@ -65,7 +65,7 @@ function Resource-Path([string]$raw) {
   }
   if ($lower.StartsWith('tools/ffmpeg/') -or $lower.StartsWith('tools/stem_separator/')) {
     if ($leaf -in @('thumbs.db','desktop.ini','donoriginal3dmusic3.exe','readme.md')) { return $null }
-    if ($leaf -match '\.(cmd|bat|ps1|log|pdb|bak|cs|csproj|pyc|py)$') { return $null }
+    if ($leaf -match '\.(cmd|bat|ps1|log|pdb|bak|cs|csproj)$') { return $null }
     if ($leaf -match 'debug|positiontrace|stagec_|staged_|stagee_|音響検査|測定と出典') { return $null }
     return $rel
   }
