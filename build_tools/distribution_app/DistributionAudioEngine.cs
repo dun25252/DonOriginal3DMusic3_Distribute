@@ -408,6 +408,83 @@ internal static class DistributionAudioEngine
         StandardErrorEncoding=new UTF8Encoding(false,true)
     };
 
+    // Restore the v1.48 rule: a valid source disc number is doubled on output.
+    // FLAC tags commonly use DISCNUMBER; some formats use DISC or DISC_NUMBER.
+    private static int? ReadDiscNumberTags(JsonElement tags)
+    {
+        if(tags.ValueKind!=JsonValueKind.Object)return null;
+        foreach(string preferredKey in new[]{"discnumber","disc","disc_number"})
+            foreach(var field in tags.EnumerateObject())
+                if(field.Name.Equals(preferredKey,StringComparison.OrdinalIgnoreCase) &&
+                   field.Value.ValueKind==JsonValueKind.String)
+                {
+                    string? raw=field.Value.GetString();
+                    string numberPart=(raw??"").Split('/')[0].Trim();
+                    if(int.TryParse(numberPart,NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,out int number) && number>0)
+                        return number;
+                }
+        return null;
+    }
+
+    private static int? ReadDiscNumberJson(JsonElement root)
+    {
+        if(root.ValueKind!=JsonValueKind.Object)return null;
+        if(root.TryGetProperty("format",out var format) &&
+           format.ValueKind==JsonValueKind.Object &&
+           format.TryGetProperty("tags",out var tags))
+        {
+            int? number=ReadDiscNumberTags(tags);
+            if(number.HasValue)return number;
+        }
+        if(root.TryGetProperty("streams",out var streams) &&
+           streams.ValueKind==JsonValueKind.Array)
+            foreach(var stream in streams.EnumerateArray())
+                if(stream.ValueKind==JsonValueKind.Object &&
+                   stream.TryGetProperty("tags",out var streamTags))
+                {
+                    int? number=ReadDiscNumberTags(streamTags);
+                    if(number.HasValue)return number;
+                }
+        return null;
+    }
+
+    private static int? DiscNumberAfterConversion(int? sourceDisc,bool doubleDisc)
+    {
+        return doubleDisc && sourceDisc.HasValue ?
+            checked(sourceDisc.Value*2) : null;
+    }
+
+    private static string[] DiscMetadataArgs(int? newDisc)
+    {
+        if(!newDisc.HasValue)return Array.Empty<string>();
+        string number=newDisc.Value.ToString(CultureInfo.InvariantCulture);
+        return new[]{"-metadata","disc="+number,
+                     "-metadata","discnumber="+number};
+    }
+
+    private static async Task<int?> ReadSourceDiscNumberAsync(string source,CancellationToken token)
+    {
+        using var p=new Process();
+        p.StartInfo=CreateFfprobeStartInfo();
+        foreach(string item in new[]{"-v","error","-show_entries",
+            "format_tags:stream_tags","-of","json",source})
+            p.StartInfo.ArgumentList.Add(item);
+        if(!p.Start())throw new InvalidDataException(
+            "ディスク番号を調べるためのFFprobeを起動できません");
+        using var cancel=token.Register(()=>{
+            try{if(!p.HasExited)p.Kill(true);}catch{}
+        });
+        Task<string> output=p.StandardOutput.ReadToEndAsync(token);
+        Task<string> errors=p.StandardError.ReadToEndAsync(token);
+        await Task.WhenAll(output,errors,p.WaitForExitAsync(token));
+        if(p.ExitCode!=0)
+            throw new InvalidDataException(
+                "元音源のディスク番号を確認できません: "+errors.Result.Trim());
+        using var json=JsonDocument.Parse(output.Result);
+        return ReadDiscNumberJson(json.RootElement);
+    }
+
     private static async Task<string> SourceTitle(string source,CancellationToken token)
     {
         using var p = new Process();
@@ -503,6 +580,26 @@ internal static class DistributionAudioEngine
                     "Japanese UTF-8 TITLE must remain intact");
 
             Require(Sanitize("COM9")=="_COM9","Windows reserved device protection");
+            using(var tag=JsonDocument.Parse(
+                """{"format":{"tags":{"DISCNUMBER":"1/3","title":"アルバム曲"}}}"""))
+                Require(ReadDiscNumberJson(tag.RootElement)==1,
+                    "DISCNUMBER 1/3 tag extraction");
+            using(var tag=JsonDocument.Parse(
+                """{"streams":[{"tags":{"disc":"2"}}]}"""))
+                Require(ReadDiscNumberJson(tag.RootElement)==2,
+                    "stream DISC tag extraction");
+            using(var tag=JsonDocument.Parse("""{"format":{"tags":{"title":"No disc"}}}"""))
+                Require(ReadDiscNumberJson(tag.RootElement)==null,
+                    "missing disc remains unset");
+            Require(DiscNumberAfterConversion(1,true)==2 &&
+                    DiscNumberAfterConversion(2,true)==4 &&
+                    DiscNumberAfterConversion(null,true)==null &&
+                    DiscNumberAfterConversion(1,false)==null,
+                "legacy disc-number x2 default / opt-out");
+            Require(DiscMetadataArgs(2).SequenceEqual(new[]{
+                "-metadata","disc=2","-metadata","discnumber=2"}),
+                "FLAC disc metadata rewrite");
+
             using(var formatTitle=JsonDocument.Parse(
                 """{"format":{"tags":{"TITLE":"Cats are dangerous"}}}"""))
                 Require(ReadSourceTitleJson(formatTitle.RootElement)=="Cats are dangerous",
@@ -623,7 +720,8 @@ internal static class DistributionAudioEngine
     }
 
     public static async Task<string> ConvertAsync(string input,string outputBase,
-        double voiceDb,double backingDb,IProgress<int>? progress,CancellationToken token)
+        double voiceDb,double backingDb,bool doubleDiscNumber,
+        IProgress<int>? progress,CancellationToken token)
     {
         if(!File.Exists(input))throw new FileNotFoundException("変換元がありません",input);
         if(string.IsNullOrWhiteSpace(outputBase))throw new ArgumentException("保存先が空です");
@@ -686,17 +784,31 @@ internal static class DistributionAudioEngine
             if(finalStats.Frames<originalStats.Frames || finalStats.Peak>0.86 || finalStats.Peak<1e-10)
                 throw new InvalidDataException("全曲のピーク/長さ検査に失敗");
             progress?.Report(92);
+            int? convertedDiscNumber=null;
+            if(doubleDiscNumber)
+            {
+                int? originalDiscNumber=await ReadSourceDiscNumberAsync(input,token);
+                convertedDiscNumber=DiscNumberAfterConversion(originalDiscNumber,true);
+            }
             string tempFlac=Path.Combine(temp,"rendered.flac");
-            await FfmpegService.RunAsync(Ff,new[]{
+            var encodeArgs=new List<string>{
                 "-hide_banner","-loglevel","error","-y",
                 "-f","f32le","-ar","48000","-ac","2","-i",master,
-                "-i",input,"-map","0:a:0","-map_metadata","1","-vn",
+                "-i",input,"-map","0:a:0","-map_metadata","1","-vn"
+            };
+            encodeArgs.AddRange(DiscMetadataArgs(convertedDiscNumber));
+            encodeArgs.AddRange(new[]{
                 "-c:a","flac","-sample_fmt","s32","-bits_per_raw_sample","24",
                 "-ar","48000","-ac","2",tempFlac
-            },token);
+            });
+            await FfmpegService.RunAsync(Ff,encodeArgs,token);
             if(!File.Exists(tempFlac)||new FileInfo(tempFlac).Length<4096)
                 throw new IOException("最終FLACの書き出しに失敗");
             await ValidateFlacAsync(tempFlac,originalStats.Frames,token);
+            if(convertedDiscNumber.HasValue &&
+               await ReadSourceDiscNumberAsync(tempFlac,token)!=convertedDiscNumber)
+                throw new InvalidDataException(
+                    "ディスク番号が変換後のFLACに反映されませんでした");
             string result=await MoveOneOutput(tempFlac,input,outputBase,token);
             progress?.Report(100);
             return result;
