@@ -1,0 +1,87 @@
+name: Split Ver.1.0 EXE update for small direct downloads
+on:
+  push:
+    branches: ['build/v1.0-repackage']
+    paths: ['.github/workflows/v1_0_split_current_exe.yml']
+permissions:
+  actions: read
+  contents: read
+jobs:
+  two-small-archives:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Download verified completed Windows GUI EXE
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p source
+          gh run download 40669819465 --repo "$GH_REPO" --name DonOriginal3DMusic3_v1.0_Exe_ONLY_NOT_DISTRIBUTION --dir source
+          test -s source/DonOriginal3DMusic3.exe
+      - name: Pack update-only EXE and split into two downloadable parts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          import hashlib, json
+          src = Path("source/DonOriginal3DMusic3.exe")
+          out = Path("parts")
+          out.mkdir(exist_ok=True)
+          zipname = "DonOriginal3DMusic3_v1.0_Clarity_DiscFix_EXE.zip"
+          bundle = out / zipname
+          with ZipFile(bundle, "w", ZIP_DEFLATED, compresslevel=6) as z:
+              z.write(src, "DonOriginal3DMusic3.exe")
+          raw = bundle.read_bytes()
+          # Split into 40 MiB and the remainder; the EXE is ~66 MB zipped.
+          chunk = 40 * 1024 * 1024
+          sections = [raw[i:i + chunk] for i in range(0, len(raw), chunk)]
+          assert len(sections) == 2, f"Expected exactly two parts: {len(raw)} bytes"
+          for i, section in enumerate(sections, 1):
+              (out / f"part{i:02d}.bin").write_bytes(section)
+          digest = hashlib.sha256(raw).hexdigest()
+          assert b"".join(x.read_bytes() for x in sorted(out.glob("part*.bin"))) == raw
+          with ZipFile(bundle) as z:
+              assert z.testzip() is None
+              assert z.namelist() == ["DonOriginal3DMusic3.exe"]
+          cmd = f"""@echo off
+          setlocal
+          cd /d "%~dp0"
+          if not exist "part01.bin" (echo Missing part01.bin&pause&exit /b 1)
+          if not exist "part02.bin" (echo Missing part02.bin&pause&exit /b 1)
+          copy /b "part01.bin"+"part02.bin" "{zipname}" >nul
+          if errorlevel 1 (echo Join failed&pause&exit /b 1)
+          powershell -NoProfile -Command "if ((Get-FileHash -LiteralPath '{zipname}' -Algorithm SHA256).Hash -ne '{digest}') {{exit 1}}"
+          if errorlevel 1 (echo SHA256 MISMATCH&pause&exit /b 1)
+          echo SHA256 OK - EXE update ZIP restored.
+          echo Extract the ZIP and replace DonOriginal3DMusic3.exe in your EXISTING full folder.
+          pause
+          """
+          (out / "restore.cmd").write_bytes(
+              "\r\n".join(line.strip() for line in cmd.strip().splitlines()).encode("ascii") + b"\r\n"
+          )
+          print(json.dumps({"total": len(raw), "part_sizes": list(map(len, sections)),
+                            "sha256":digest, "exe_bytes":src.stat().st_size}))
+          bundle.unlink()
+          PY
+      - name: Upload part 01 (includes ASCII CMD)
+        uses: actions/upload-artifact@v4
+        with:
+          name: DonOriginal3DMusic3_v1.0_Clarity_DiscFix_PART01
+          path: |
+            parts/part01.bin
+            parts/restore.cmd
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload part 02
+        uses: actions/upload-artifact@v4
+        with:
+          name: DonOriginal3DMusic3_v1.0_Clarity_DiscFix_PART02
+          path: parts/part02.bin
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
