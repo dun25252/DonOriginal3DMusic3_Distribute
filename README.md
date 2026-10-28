@@ -1,3 +1,20 @@
+## 最新Ver.1.0修正版EXE：3分割ダウンロード（2026-10-28）
+
+**[GitHub ActionsからPart 1〜3をダウンロード](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/40672326204)**
+
+画面下部の **Artifacts** で `DonOriginal3DMusic3_v1.0_Update_Part01`、
+`DonOriginal3DMusic3_v1.0_Update_Part02`、
+`DonOriginal3DMusic3_v1.0_Update_Part03` をそれぞれダウンロードしてください。
+
+各ZIPを**同じフォルダーへ解凍**し、Part 1 にある `restore.cmd` をダブルクリックします。
+生成される `DonOriginal3DMusic3.exe` を既存の `DonOriginal3DMusic3_v1.0` フォルダーの同名EXEと置き換えてください。
+`assets` と `tools` は削除しないでください。
+
+- **再結合時のSHA-256**：`ce9867c66e0437ef4429f3d8313d8d77a478a5fc8f35e5134f6d69a44ec9831c`
+- GitHub Windowsコンパイル・自己検査・3分割再結合照合：成功
+- この3分割は**EXE更新用のみ**です。素材一式入りの完全版配布ZIPではありません。
+- Actions成果物には保存期限があります。期限後はダウンロードできません。
+
 # DonOriginal3DMusic3 Ver.1.0
 
 音楽を3D FLACへ変換するWindows用ソフトです。複数曲をまとめて変換できます。
