@@ -49,6 +49,104 @@ jobs:
         run: |
           Write-Host 'EXE compilation and synthetic tests are not full HUTUBS/IoSR/HTDemucs audio QA.'
           Write-Host 'The genuine 513,598,015-byte v1.48 archive must be verified and packaged first.'
+      - name: Split verified Ver.1.0 EXE into three small downloadable ZIP artifacts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $app = (Resolve-Path .\\build_temp\\DonOriginal3DMusic3.exe).Path
+          $expected = (Get-FileHash -LiteralPath $app -Algorithm SHA256).Hash.ToLowerInvariant()
+          $source = [IO.File]::OpenRead($app)
+          $chunkSize = 24 * 1024 * 1024
+          $buffer = [byte[]]::new(1048576)
+          try {
+            if ($source.Length -le (2 * $chunkSize) -or $source.Length -gt (3 * $chunkSize)) {
+              throw "Unexpected EXE size for 3-part delivery: $($source.Length)"
+            }
+            for ($i = 1; $i -le 3; $i++) {
+              $dir = 'delivery/part{0:D2}' -f $i
+              New-Item -ItemType Directory -Force -Path $dir | Out-Null
+              $name = 'part{0:D2}.bin' -f $i
+              $path = Join-Path $dir $name
+              $length = [long][Math]::Min($chunkSize, $source.Length - $source.Position)
+              $output = [IO.File]::Create($path)
+              try {
+                $written = [long]0
+                while ($written -lt $length) {
+                  $want = [int][Math]::Min($buffer.Length, $length - $written)
+                  $n = $source.Read($buffer, 0, $want)
+                  if ($n -le 0) { throw "Unexpected EOF: $name" }
+                  $output.Write($buffer, 0, $n)
+                  $written += $n
+                }
+              } finally { $output.Dispose() }
+              Write-Host "$name = $length bytes"
+            }
+            if ($source.Position -ne $source.Length) { throw 'Unsplit EXE bytes remain' }
+          } finally { $source.Dispose() }
+
+          $restore = @'
+          @echo off
+          setlocal
+          cd /d "%~dp0"
+          for %%F in (part01.bin part02.bin part03.bin) do (
+            if not exist "%%F" (
+              echo ERROR: Missing %%F
+              pause
+              exit /b 1
+            )
+          )
+          copy /b "part01.bin"+"part02.bin"+"part03.bin" "DonOriginal3DMusic3.exe" >nul
+          if errorlevel 1 (
+            echo ERROR: Failed to combine parts.
+            pause
+            exit /b 1
+          )
+          certutil -hashfile "DonOriginal3DMusic3.exe" SHA256 | findstr /i "@@HASH@@" >nul
+          if errorlevel 1 (
+            echo ERROR: SHA256 mismatch.
+            del "DonOriginal3DMusic3.exe" >nul 2>&1
+            pause
+            exit /b 1
+          )
+          echo SHA256 OK - DonOriginal3DMusic3.exe is ready.
+          echo Copy the EXE into your EXISTING DonOriginal3DMusic3_v1.0 folder.
+          echo Keep the existing assets and tools directories.
+          pause
+          '@
+          $restore = $restore.Replace('@@HASH@@', $expected)
+          [IO.File]::WriteAllText('delivery/part01/restore.cmd',
+            $restore.Replace("`n", "`r`n"), [Text.Encoding]::ASCII)
+
+          $joined = Join-Path $env:RUNNER_TEMP 'recombined_v1.0.exe'
+          $sink = [IO.File]::Create($joined)
+          try {
+            foreach ($i in 1..3) {
+              $part = 'delivery/part{0:D2}/part{0:D2}.bin' -f $i
+              $input = [IO.File]::OpenRead($part)
+              try { $input.CopyTo($sink) } finally { $input.Dispose() }
+            }
+          } finally { $sink.Dispose() }
+          $actual = (Get-FileHash -LiteralPath $joined -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($expected -ne $actual) { throw "The 3 chunks do NOT reassemble to the original EXE" }
+          Write-Host "VER_1_0_SPLIT_REJOIN_SHA256_OK=$actual"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DonOriginal3DMusic3_v1.0_Update_Part01
+          path: delivery/part01/
+          retention-days: 7
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DonOriginal3DMusic3_v1.0_Update_Part02
+          path: delivery/part02/
+          retention-days: 7
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DonOriginal3DMusic3_v1.0_Update_Part03
+          path: delivery/part03/
+          retention-days: 7
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: DonOriginal3DMusic3_v1.0_Exe_ONLY_NOT_DISTRIBUTION
