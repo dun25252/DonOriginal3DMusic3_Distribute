@@ -393,14 +393,25 @@ internal static class DistributionAudioEngine
         return null;
     }
 
+    // FFprobe JSON is UTF-8, independently of the Windows ANSI code page.
+    // Without an explicit encoding, Japanese Windows can decode it as CP932,
+    // turning さよならエンドロール into 縺輔ｈ縺ｪ繧峨お繝ｳ繝峨Ο繝ｼ繝ｫ.
+    private static ProcessStartInfo CreateFfprobeStartInfo() => new()
+    {
+        FileName=Fp,
+        WorkingDirectory=AppContext.BaseDirectory,
+        RedirectStandardOutput=true,
+        RedirectStandardError=true,
+        UseShellExecute=false,
+        CreateNoWindow=true,
+        StandardOutputEncoding=new UTF8Encoding(false,true),
+        StandardErrorEncoding=new UTF8Encoding(false,true)
+    };
+
     private static async Task<string> SourceTitle(string source,CancellationToken token)
     {
         using var p = new Process();
-        p.StartInfo = new ProcessStartInfo {
-            FileName=Fp, WorkingDirectory=AppContext.BaseDirectory,
-            RedirectStandardOutput=true,RedirectStandardError=true,
-            UseShellExecute=false,CreateNoWindow=true
-        };
+        p.StartInfo=CreateFfprobeStartInfo();
         foreach(string x in new[]{"-v","error","-show_entries",
             "format_tags=title:stream_tags=title","-of","json",source})
             p.StartInfo.ArgumentList.Add(x);
@@ -483,6 +494,14 @@ internal static class DistributionAudioEngine
             Require(Path.GetFileName(Path.GetDirectoryName(first)!)=="3D変換先",
                 "output directory naming");
             Require(Sanitize("猫:夏/曲")=="猫_夏_曲","Japanese song title preservation");
+            Require(CreateFfprobeStartInfo().StandardOutputEncoding?.WebName=="utf-8",
+                "FFprobe output must decode UTF-8, never Windows CP932");
+            byte[] utf8Metadata=Encoding.UTF8.GetBytes(
+                """{"format":{"tags":{"TITLE":"さよならエンドロール"}}}""");
+            using(var japaneseTitle=JsonDocument.Parse(Encoding.UTF8.GetString(utf8Metadata)))
+                Require(ReadSourceTitleJson(japaneseTitle.RootElement)=="さよならエンドロール",
+                    "Japanese UTF-8 TITLE must remain intact");
+
             Require(Sanitize("COM9")=="_COM9","Windows reserved device protection");
             using(var formatTitle=JsonDocument.Parse(
                 """{"format":{"tags":{"TITLE":"Cats are dangerous"}}}"""))
@@ -564,11 +583,7 @@ internal static class DistributionAudioEngine
     {
         // Validate decoded metadata *before* exposing a file to end users.
         using var p=new Process();
-        p.StartInfo=new ProcessStartInfo {
-            FileName=Fp,WorkingDirectory=AppContext.BaseDirectory,
-            RedirectStandardOutput=true,RedirectStandardError=true,
-            UseShellExecute=false,CreateNoWindow=true
-        };
+        p.StartInfo=CreateFfprobeStartInfo();
         foreach(string arg in new [] {
             "-v","error","-select_streams","a:0",
             "-show_entries","stream=codec_name,channels,sample_rate,bits_per_raw_sample:format=duration",
