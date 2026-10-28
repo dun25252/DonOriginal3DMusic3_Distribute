@@ -50,6 +50,7 @@ function Resource-Path([string]$raw) {
   $rel = $parts[$start..($parts.Length-1)] -join '/'
   $lower = $rel.ToLowerInvariant()
   $leaf = $parts[-1].ToLowerInvariant()
+  if ($lower -eq 'assets/brir/brir_license.txt') { return $rel }
   if ($lower.StartsWith('assets/brir/')) {
     if ($needed.Contains($rel)) { return $rel }
     return $null
