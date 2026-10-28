@@ -160,7 +160,9 @@ try {
       $rel = Resource-Path $entry.FullName
       if (!$rel) { continue }
       if (!$seen.Add($rel)) { throw ('同名素材の重複: ' + $rel) }
-      if ($entry.Length -le 0) { throw ('空の素材: ' + $rel) }
+      if ($entry.Length -eq 0 -and !$rel.StartsWith('tools/stem_separator/_internal/')) {
+        throw ('必要な素材が空です: ' + $rel)
+      }
       $totalBytes += [long]$entry.Length
       if ($totalBytes -gt 8589934592) { throw '展開サイズが安全上限8GBを超えます。' }
       if ($rel.ToLowerInvariant().StartsWith('assets/models/demucs_onnx_cache/') -and
