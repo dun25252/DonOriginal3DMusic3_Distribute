@@ -1,3 +1,19 @@
+## Ver.1.0 最新・音声フィルター配線修正版（2026-10-29）
+
+[**Windowsビルド成功と3分割EXE更新ファイル（GitHub Actions）**](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/40843731897)
+
+- 前後ボーカル切替の実装時に残った `[irFLL]` / `[irFRL]` の未接続経路を削除（FFmpeg error -22）。
+- 以降、FFmpegフィルターグラフで余った内部接続や接続数の異常を検出する自己検査を追加。
+- ボーカル前後切替、後方低音、室内反射調整、ディスク番号2倍、日本語タイトル修正は維持。
+- Windowsビルド・自己検査・3分割結合時のSHA-256一致：成功。
+- 再結合EXE SHA-256：`db33f86575bad4e5c523520db02c9c5c2764ad4cc96766fb93f87993746f23a6`。
+
+**ダウンロード**：GitHub Actionsページの `Artifacts` から `DonOriginal3DMusic3_v1.0_Update_Part01`・`Part02`・`Part03` の3つを取得し、すべてを同じフォルダーに解凍して `restore.cmd` を実行。出来上がった `DonOriginal3DMusic3.exe` を、既存の完全版フォルダーの同名EXEに上書きしてください。
+
+**注意**：今回のダウンロードは実行ファイルの更新分のみ。音響素材の `assets`、`tools`、`licenses` は含みません。削除しないでください。実際の楽曲を使うFFmpegのフル変換検査および3D定位の官能検査はまだ未実施です。バージョンは1.0のままです。
+
+---
+
 # DonOriginal3DMusic3 Ver.1.0 — 3D定位修正EXE（最新）
 
 **現在のEXE更新ファイル：** [Windowsビルド成功・3分割ダウンロード](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/40841184720)
