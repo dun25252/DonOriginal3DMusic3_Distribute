@@ -209,7 +209,7 @@ internal static class DistributionAudioEngine
 
     private static async Task<(string L,string R)> BuildHybridIr(
         string temp, string direction, int angle, double roomPercent,
-        CancellationToken token)
+        CancellationToken token, string irMode="room")
     {
         string mono = Path.Combine(temp, "test_impulse.f32");
         if (!File.Exists(mono)) {
@@ -219,7 +219,8 @@ internal static class DistributionAudioEngine
             Buffer.BlockCopy(pulse, 0, data, 0, data.Length);
             await File.WriteAllBytesAsync(mono, data, token);
         }
-        string hrtfF32 = Path.Combine(temp, "H3_" + direction + ".f32");
+        string location=direction+"_"+irMode;
+        string hrtfF32 = Path.Combine(temp, "H3_" + location + ".f32");
         await FfmpegService.RunAsync(Ff, new[] {
             "-hide_banner", "-loglevel", "error", "-y",
             "-f", "f32le", "-ar", "48000", "-ac", "1", "-i", mono,
@@ -228,14 +229,14 @@ internal static class DistributionAudioEngine
                    "interpolate=1:anglestep=1:normalize=0:lfegain=-20",
             "-ar", "48000", "-ac", "2", "-f", "f32le", hrtfF32
         }, token);
-        string originalL = Path.Combine(temp, direction + "_original_L.f32");
-        string originalR = Path.Combine(temp, direction + "_original_R.f32");
-        await DecodeAsync(Ir(direction, "room", "L"), originalL, 1, token);
-        await DecodeAsync(Ir(direction, "room", "R"), originalR, 1, token);
+        string originalL = Path.Combine(temp, location + "_original_L.f32");
+        string originalR = Path.Combine(temp, location + "_original_R.f32");
+        await DecodeAsync(Ir(direction, irMode, "L"), originalL, 1, token);
+        await DecodeAsync(Ir(direction, irMode, "R"), originalR, 1, token);
         var both = ReplaceDirect(ReadFloat(originalL), ReadFloat(originalR), ReadFloat(hrtfF32));
         ScaleLateRoomReflections(both.L,both.R,roomPercent);
-        string outL = Path.Combine(temp, "v1.0_" + direction + "_Hybrid_L.wav");
-        string outR = Path.Combine(temp, "v1.0_" + direction + "_Hybrid_R.wav");
+        string outL = Path.Combine(temp, "v1.0_" + location + "_Hybrid_L.wav");
+        string outR = Path.Combine(temp, "v1.0_" + location + "_Hybrid_R.wav");
         WriteWavMono(outL, both.L);
         WriteWavMono(outR, both.R);
         return (outL,outR);
@@ -781,6 +782,7 @@ internal static class DistributionAudioEngine
             }
             catch(InvalidDataException){rejectedUnused=true;}
             Require(rejectedUnused,"dangling IR branch must fail graph gate");
+            SpatialObjectRouter.SelfTest();
             Require(frontGraph.Contains("[bF0]volume=0.1") &&
                     frontGraph.Contains("[bR0]volume=0.9"),
                 "rear bass routed correctly");
@@ -863,30 +865,36 @@ internal static class DistributionAudioEngine
             progress?.Report(45);
             string source=Path.Combine(temp,"src.f32");
             string voc=Path.Combine(temp,"voc.f32");
+            string drums=Path.Combine(temp,"drums.f32");
             string bass=Path.Combine(temp,"bass.f32");
+            string other=Path.Combine(temp,"other.f32");
+            string remaining=Path.Combine(temp,"residual.f32");
             await DecodeAsync(separatorInput,source,2,token);
             await DecodeAsync(stems.Vocals,voc,2,token);
+            await DecodeAsync(stems.Drums,drums,2,token);
             await DecodeAsync(stems.Bass,bass,2,token);
-            string va=Path.Combine(temp,"va.f32"),ba=Path.Combine(temp,"ba.f32"),back=Path.Combine(temp,"back.f32");
-            await Task.Run(() => ReconstructBuses(source,voc,bass,va,ba,back,token),token);
+            await DecodeAsync(stems.Other,other,2,token);
+            await Task.Run(()=>SpatialObjectRouter.MakeResidual(
+                source,voc,drums,bass,other,remaining,token),token);
             progress?.Report(51);
             var front=await BuildHybridIr(temp,"F",0,roomPercent,token);
             var rear=await BuildHybridIr(temp,"B",180,roomPercent,token);
-            var sideLeft=await BuildSideRoomIr(temp,"sideL",roomPercent,token);
-            var sideRight=await BuildSideRoomIr(temp,"sideR",roomPercent,token);
+            var sideLeft=await BuildHybridIr(temp,"F",90,roomPercent,token,"sideL_room");
+            var sideRight=await BuildHybridIr(temp,"F",-90,roomPercent,token,"sideR_room");
             progress?.Report(59);
             var ir = new[] {front.L,front.R,rear.L,rear.R,
                 sideLeft.L,sideLeft.R,sideRight.L,sideRight.R};
-            string[] args = {
-                "-hide_banner","-loglevel","error","-y",
-                "-f","f32le","-ar","48000","-ac","2","-i",va,
-                "-f","f32le","-ar","48000","-ac","2","-i",ba,
-                "-f","f32le","-ar","48000","-ac","2","-i",back
+            var command=new List<string>{
+                "-hide_banner","-loglevel","error","-y"
             };
-            var command=new List<string>(args);
+            foreach(string bus in new[]{voc,drums,bass,other,remaining})
+                command.AddRange(new[]{
+                    "-f","f32le","-ar","48000","-ac","2","-i",bus
+                });
             foreach(string wav in ir){command.Add("-i");command.Add(wav);}
             string scene=Path.Combine(temp,"scene.f32");
-            command.AddRange(new[]{"-filter_complex",Filter(voiceDb,backingDb,vocalRear),
+            command.AddRange(new[]{"-filter_complex",
+                SpatialObjectRouter.Graph(voiceDb,backingDb,vocalRear),
                 "-map","[out]","-ar","48000","-ac","2","-f","f32le",scene});
             await FfmpegService.RunAsync(Ff,command,token);
             progress?.Report(81);
