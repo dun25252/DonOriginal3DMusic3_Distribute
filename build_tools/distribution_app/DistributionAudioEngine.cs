@@ -7,6 +7,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -318,6 +319,27 @@ internal static class DistributionAudioEngine
             throw new InvalidDataException("分離Stemと原音の尺が異なります");
     }
 
+    // Fail before invoking FFmpeg when a generated filtergraph contains an
+    // unconsumed or multiply-consumed named pad (e.g. the old irFLL bug).
+    // Numeric :a inputs are external streams; [out] is the sole final output.
+    private static void ValidateFilterGraphTopology(string graph)
+    {
+        var pads=Regex.Matches(graph,@"\\[([A-Za-z][A-Za-z0-9_]*)\\]")
+            .Select(m=>m.Groups[1].Value)
+            .GroupBy(name=>name,StringComparer.Ordinal)
+            .ToDictionary(g=>g.Key,g=>g.Count(),StringComparer.Ordinal);
+        foreach(var pad in pads)
+        {
+            int expected=pad.Key=="out" ? 1 : 2;
+            if(pad.Value!=expected)
+                throw new InvalidDataException(
+                    "3D音響フィルター配線エラー: "+
+                    pad.Key+" の接続数="+pad.Value+" (期待="+expected+")");
+        }
+        if(!pads.ContainsKey("out"))
+            throw new InvalidDataException("3D音響フィルター最終出力がありません");
+    }
+
     private static string Filter(double voiceDb,double backingDb,bool vocalRear)
     {
         double vg=Math.Pow(10,voiceDb/20),ig=Math.Pow(10,backingDb/20);
@@ -328,7 +350,7 @@ internal static class DistributionAudioEngine
         string sink=vocalRear?
             "[irFLV]anullsink;[irFRV]anullsink;" :
             "[irRLV]anullsink;[irRRV]anullsink;";
-        return
+        string graph=
             "[0:a]aformat=channel_layouts=stereo,asplit=2[v0][vs0];"+
             "[v0]pan=mono|c0=0.5*c0+0.5*c1,volume="+F(vg)+",asplit=2[vFL][vFR];"+
             "[vs0]pan=mono|c0=0.5*c0-0.5*c1,volume="+F(vg)+"[vSide];"+
@@ -343,8 +365,8 @@ internal static class DistributionAudioEngine
             "[vSide][backSide]amix=inputs=2:normalize=0:duration=longest,asplit=2[sL0][sR0];"+
             "[sL0]asplit=2[sLL][sLR];"+
             "[sR0]volume=-1,asplit=2[sRL][sRR];"+
-            "[3:a]asplit=3[irFLL][irFLB][irFLV];"+
-            "[4:a]asplit=3[irFRL][irFRB][irFRV];"+
+            "[3:a]asplit=2[irFLB][irFLV];"+
+            "[4:a]asplit=2[irFRB][irFRV];"+
             "[5:a]asplit=3[irRLL][irRLB][irRLV];"+
             "[6:a]asplit=3[irRRL][irRRB][irRRV];"+
             "[vFL]["+vL+"]"+Afir+"[vOL];"+
@@ -363,6 +385,8 @@ internal static class DistributionAudioEngine
             "[vOL][bfOL][rOL][brOL][sOLL][sORL]amix=inputs=6:normalize=0:duration=longest[L];"+
             "[vOR][bfOR][rOR][brOR][sOLR][sORR]amix=inputs=6:normalize=0:duration=longest[R];"+
             "[L][R]amerge=inputs=2[out]";
+        ValidateFilterGraphTopology(graph);
+        return graph;
     }
 
     private readonly record struct Stats(long Frames,double Rms,double Peak);
@@ -741,6 +765,22 @@ internal static class DistributionAudioEngine
                     rearGraph.Contains("[vFL][irRLV]") &&
                     rearGraph.Contains("[vFR][irRRV]"),
                 "front/rear vocal object routing");
+            // This exact class of wiring error previously caused:
+            // "Filter 'asplit' has output 0 (irFLL) unconnected".
+            Require(!frontGraph.Contains("[irFLL]") &&
+                    !rearGraph.Contains("[irFLL]") &&
+                    !frontGraph.Contains("[irFRL]") &&
+                    !rearGraph.Contains("[irFRL]"),
+                "unused front IR asplit pads must not exist");
+            bool rejectedUnused=false;
+            try
+            {
+                ValidateFilterGraphTopology(
+                    frontGraph.Replace("[3:a]asplit=2[irFLB][irFLV]",
+                                       "[3:a]asplit=3[irFLL][irFLB][irFLV]"));
+            }
+            catch(InvalidDataException){rejectedUnused=true;}
+            Require(rejectedUnused,"dangling IR branch must fail graph gate");
             Require(frontGraph.Contains("[bF0]volume=0.1") &&
                     frontGraph.Contains("[bR0]volume=0.9"),
                 "rear bass routed correctly");
