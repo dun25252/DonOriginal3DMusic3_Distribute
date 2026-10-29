@@ -318,28 +318,38 @@ internal static class DistributionAudioEngine
             throw new InvalidDataException("分離Stemと原音の尺が異なります");
     }
 
-    private static string Filter(double voiceDb,double backingDb)
+    private static string Filter(double voiceDb,double backingDb,bool vocalRear)
     {
         double vg=Math.Pow(10,voiceDb/20),ig=Math.Pow(10,backingDb/20);
+        // A single vocal Stem is a single positionable object; it is NOT
+        // evidence of singer identities. Route the full lead to front or rear.
+        string vL=vocalRear?"irRLV":"irFLV";
+        string vR=vocalRear?"irRRV":"irFRV";
+        string sink=vocalRear?
+            "[irFLV]anullsink;[irFRV]anullsink;" :
+            "[irRLV]anullsink;[irRRV]anullsink;";
         return
             "[0:a]aformat=channel_layouts=stereo,asplit=2[v0][vs0];"+
             "[v0]pan=mono|c0=0.5*c0+0.5*c1,volume="+F(vg)+",asplit=2[vFL][vFR];"+
             "[vs0]pan=mono|c0=0.5*c0-0.5*c1,volume="+F(vg)+"[vSide];"+
             "[1:a]aformat=channel_layouts=stereo,pan=mono|c0=0.5*c0+0.5*c1,asplit=2[bF0][bR0];"+
-            "[bF0]volume=0.72,asplit=2[bFL][bFR];"+
-            "[bR0]volume=0.28,asplit=2[bRL][bRR];"+
+            // Legacy 72%-front routing undermined the requested rear bass.
+            // Mostly rear with a small front anchor (not fake bass boosting).
+            "[bF0]volume=0.1,asplit=2[bFL][bFR];"+
+            "[bR0]volume=0.9,asplit=2[bRL][bRR];"+
             "[2:a]aformat=channel_layouts=stereo,asplit=2[backM0][backS0];"+
             "[backM0]pan=mono|c0=0.5*c0+0.5*c1,volume="+F(ig)+",asplit=2[backRL][backRR];"+
             "[backS0]pan=mono|c0=0.5*c0-0.5*c1,volume="+F(ig)+"[backSide];"+
             "[vSide][backSide]amix=inputs=2:normalize=0:duration=longest,asplit=2[sL0][sR0];"+
             "[sL0]asplit=2[sLL][sLR];"+
             "[sR0]volume=-1,asplit=2[sRL][sRR];"+
-            "[3:a]asplit=2[irFLL][irFLB];"+
-            "[4:a]asplit=2[irFRL][irFRB];"+
-            "[5:a]asplit=2[irRLL][irRLB];"+
-            "[6:a]asplit=2[irRRL][irRRB];"+
-            "[vFL][irFLL]"+Afir+"[vOL];"+
-            "[vFR][irFRL]"+Afir+"[vOR];"+
+            "[3:a]asplit=3[irFLL][irFLB][irFLV];"+
+            "[4:a]asplit=3[irFRL][irFRB][irFRV];"+
+            "[5:a]asplit=3[irRLL][irRLB][irRLV];"+
+            "[6:a]asplit=3[irRRL][irRRB][irRRV];"+
+            "[vFL]["+vL+"]"+Afir+"[vOL];"+
+            "[vFR]["+vR+"]"+Afir+"[vOR];"+
+            sink+
             "[bFL][irFLB]"+Afir+"[bfOL];"+
             "[bFR][irFRB]"+Afir+"[bfOR];"+
             "[backRL][irRLL]"+Afir+"[rOL];"+
@@ -721,8 +731,19 @@ internal static class DistributionAudioEngine
             Require(hybrid.L[1000]==left[1000] &&
                 hybrid.R[1000]==right[1000],
                 "room reverberation tail must remain unchanged");
-            Require(Filter(1,-0.5).Contains("afir=irnorm=-1"),
+            string frontGraph=Filter(1,-0.5,false);
+            string rearGraph=Filter(1,-0.5,true);
+            Require(frontGraph.Contains("afir=irnorm=-1") &&
+                    rearGraph.Contains("afir=irnorm=-1"),
                 "full measured room IR not found in DSP");
+            Require(frontGraph.Contains("[vFL][irFLV]") &&
+                    frontGraph.Contains("[vFR][irFRV]") &&
+                    rearGraph.Contains("[vFL][irRLV]") &&
+                    rearGraph.Contains("[vFR][irRRV]"),
+                "front/rear vocal object routing");
+            Require(frontGraph.Contains("[bF0]volume=0.1") &&
+                    frontGraph.Contains("[bR0]volume=0.9"),
+                "rear bass routed correctly");
         }
         finally
         {
@@ -776,7 +797,7 @@ internal static class DistributionAudioEngine
 
     public static async Task<string> ConvertAsync(string input,string outputBase,
         double voiceDb,double backingDb,double roomPercent,
-        bool doubleDiscNumber,int? manualDisc,
+        bool vocalRear,bool doubleDiscNumber,int? manualDisc,
         IProgress<int>? progress,IProgress<string>? discProgress,
         CancellationToken token)
     {
@@ -825,7 +846,7 @@ internal static class DistributionAudioEngine
             var command=new List<string>(args);
             foreach(string wav in ir){command.Add("-i");command.Add(wav);}
             string scene=Path.Combine(temp,"scene.f32");
-            command.AddRange(new[]{"-filter_complex",Filter(voiceDb,backingDb),
+            command.AddRange(new[]{"-filter_complex",Filter(voiceDb,backingDb,vocalRear),
                 "-map","[out]","-ar","48000","-ac","2","-f","f32le",scene});
             await FfmpegService.RunAsync(Ff,command,token);
             progress?.Report(81);

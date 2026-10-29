@@ -46,6 +46,7 @@ internal sealed class DistributionSettings
     public decimal BackingGain {get;set;} = -0.5m;
     public bool DoubleDiscNumber {get;set;} = true;
     public decimal LateRoomPercent {get;set;} = 45m;
+    public bool VocalRear {get;set;} = false;
     public bool ManualDiscNumber {get;set;} = false;
     public decimal DiscNumberOverride {get;set;} = 1m;
     private static string ConfigFile => Path.Combine(
@@ -81,6 +82,9 @@ internal sealed class DistributionForm : Form
     };
     private readonly NumericUpDown _backing = new() {
         Minimum=-4,Maximum=3,DecimalPlaces=1,Increment=.5m,Width=64
+    };
+    private readonly ComboBox _vocalPosition = new() {
+        DropDownStyle=ComboBoxStyle.DropDownList,Width=110
     };
     private readonly NumericUpDown _roomPercent = new() {
         Minimum=20,Maximum=100,Increment=5,DecimalPlaces=0,Width=65,Value=45
@@ -133,6 +137,8 @@ internal sealed class DistributionForm : Form
         _backing.Value=Math.Clamp(_settings.BackingGain,_backing.Minimum,_backing.Maximum);
         _doubleDisc.Checked=_settings.DoubleDiscNumber;
         _roomPercent.Value=Math.Clamp(_settings.LateRoomPercent,_roomPercent.Minimum,_roomPercent.Maximum);
+        _vocalPosition.Items.AddRange(new object[]{"前方（0°）","後方（180°）"});
+        _vocalPosition.SelectedIndex=_settings.VocalRear?1:0;
         _manualDisc.Checked=_settings.ManualDiscNumber;
         _manualDiscValue.Value=Math.Clamp(_settings.DiscNumberOverride,_manualDiscValue.Minimum,_manualDiscValue.Maximum);
         _manualDiscValue.Enabled=_doubleDisc.Checked && _manualDisc.Checked;
@@ -153,6 +159,7 @@ internal sealed class DistributionForm : Form
             SaveSettings();
         };
         _roomPercent.ValueChanged+=(_,_)=>SaveSettings();
+        _vocalPosition.SelectedIndexChanged+=(_,_)=>SaveSettings();
         _manualDisc.CheckedChanged+=(_,_)=>{
             _manualDiscValue.Enabled=_doubleDisc.Checked && _manualDisc.Checked;
             SaveSettings();
@@ -208,6 +215,9 @@ internal sealed class DistributionForm : Form
         gains.Controls.Add(new Label{Text="伴奏 (dB)",AutoSize=true,
             Margin=new Padding(18,6,5,0)});
         gains.Controls.Add(_backing);
+        gains.Controls.Add(new Label {Text="ボーカル定位",AutoSize=true,
+            Margin=new Padding(18,6,5,0)});
+        gains.Controls.Add(_vocalPosition);
         bottom.Controls.Add(gains,0,1);bottom.SetColumnSpan(gains,3);
         var discOptions=new FlowLayoutPanel{AutoSize=true,WrapContents=true,Dock=DockStyle.Fill};
         discOptions.Controls.Add(_doubleDisc);
@@ -253,6 +263,7 @@ internal sealed class DistributionForm : Form
         _settings.BackingGain=_backing.Value;
         _settings.DoubleDiscNumber=_doubleDisc.Checked;
         _settings.LateRoomPercent=_roomPercent.Value;
+        _settings.VocalRear=_vocalPosition.SelectedIndex==1;
         _settings.ManualDiscNumber=_manualDisc.Checked;
         _settings.DiscNumberOverride=_manualDiscValue.Value;
         _settings.Save();
@@ -327,7 +338,8 @@ internal sealed class DistributionForm : Form
     {
         _busy=value;
         foreach(Control c in new Control[]{_add,_folder,_remove,_clear,_start,
-            _browse,_songs,_output,_vocal,_backing,_doubleDisc,_roomPercent,_manualDisc,_manualDiscValue})c.Enabled=!value;
+            _browse,_songs,_output,_vocal,_backing,_doubleDisc,_roomPercent,
+            _vocalPosition,_manualDisc,_manualDiscValue})c.Enabled=!value;
         if(!value) {
             _manualDisc.Enabled=_doubleDisc.Checked;
             _manualDiscValue.Enabled=_doubleDisc.Checked && _manualDisc.Checked;
@@ -378,7 +390,8 @@ internal sealed class DistributionForm : Form
                     });
                     await DistributionAudioEngine.ConvertAsync(
                         file,output,(double)_vocal.Value,(double)_backing.Value,
-                        (double)_roomPercent.Value,_doubleDisc.Checked,
+                        (double)_roomPercent.Value,_vocalPosition.SelectedIndex==1,
+                        _doubleDisc.Checked,
                         _manualDisc.Checked ? (int)_manualDiscValue.Value : null,
                         progress,discProgress,_cts.Token);
                     succeeded++;
