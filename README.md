@@ -1,19 +1,18 @@
-## 最新Ver.1.0修正版EXE：3分割ダウンロード（2026-10-28）
+# DonOriginal3DMusic3 Ver.1.0 — 3D定位修正EXE（最新）
 
-**[GitHub ActionsからPart 1〜3をダウンロード](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/40672326204)**
+**現在のEXE更新ファイル：** [Windowsビルド成功・3分割ダウンロード](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/40841184720)
 
-画面下部の **Artifacts** で `DonOriginal3DMusic3_v1.0_Update_Part01`、
-`DonOriginal3DMusic3_v1.0_Update_Part02`、
-`DonOriginal3DMusic3_v1.0_Update_Part03` をそれぞれダウンロードしてください。
+最新の実装では、低音を従来の「前72%／後28%」から「前10%／後90%」に変更し、GUIに「ボーカル定位：前方0°／後方180°」を追加しています。日本語タイトル、ディスク番号2倍、室内反射調整を維持しています。
 
-各ZIPを**同じフォルダーへ解凍**し、Part 1 にある `restore.cmd` をダブルクリックします。
-生成される `DonOriginal3DMusic3.exe` を既存の `DonOriginal3DMusic3_v1.0` フォルダーの同名EXEと置き換えてください。
-`assets` と `tools` は削除しないでください。
+このActionsの **Artifacts** から `DonOriginal3DMusic3_v1.0_Update_Part01`・`Part02`・`Part03` をダウンロードし、すべて同じフォルダーに解凍して `restore.cmd` を実行してください。
 
-- **再結合時のSHA-256**：`ce9867c66e0437ef4429f3d8313d8d77a478a5fc8f35e5134f6d69a44ec9831c`
-- GitHub Windowsコンパイル・自己検査・3分割再結合照合：成功
-- この3分割は**EXE更新用のみ**です。素材一式入りの完全版配布ZIPではありません。
-- Actions成果物には保存期限があります。期限後はダウンロードできません。
+再結合したEXEのSHA-256：`2fda911095feb766edb03debb401495ba21f7bacbc7b1b534ab41d074734ce89`。Windowsビルドとソースコードの自己検査、3分割後の再結合検査は成功しています。
+
+**注意：これはEXE更新用のみ**です。既存の完全版フォルダーにある `DonOriginal3DMusic3.exe` を上書きし、`assets/`、`tools/`、`licenses/` は残してください。ダウンロードした3ファイルだけで新規起動できる完全版ではありません。
+
+音の前後定位や3D感が聴覚上改善したかは、実曲と実際のヘッドホンで未検証です。複数歌手の個人ごとの自動定位・ヘッドトラッキングは実装していません。
+
+---
 
 # DonOriginal3DMusic3 Ver.1.0
 
