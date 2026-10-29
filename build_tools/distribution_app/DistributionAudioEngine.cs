@@ -324,7 +324,7 @@ internal static class DistributionAudioEngine
     // Numeric :a inputs are external streams; [out] is the sole final output.
     private static void ValidateFilterGraphTopology(string graph)
     {
-        var pads=Regex.Matches(graph,@"\\[([A-Za-z][A-Za-z0-9_]*)\\]")
+        var pads=Regex.Matches(graph,@"\[([A-Za-z][A-Za-z0-9_]*)\]")
             .Select(m=>m.Groups[1].Value)
             .GroupBy(name=>name,StringComparer.Ordinal)
             .ToDictionary(g=>g.Key,g=>g.Count(),StringComparer.Ordinal);
