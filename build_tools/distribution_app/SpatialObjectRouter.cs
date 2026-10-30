@@ -21,31 +21,42 @@ internal static class SpatialObjectRouter
 
     // Audio inputs 0..4: vocals, drums, bass, other, residual.
     // Impulse inputs 5..12: front L/R, rear L/R, side-left L/R, side-right L/R.
-    public static string Graph(double vocalDb,double backingDb,bool rearVocal)
+    public static string Graph(double vocalDb,double backingDb,bool rearVocal) =>
+        Graph(vocalDb,backingDb,rearVocal?1:0);
+
+    public static string Graph(double vocalDb,double backingDb,int vocalSeat)
     {
         double voice=Math.Pow(10,vocalDb/20);
         double instr=Math.Pow(10,backingDb/20);
-        string vL=rearVocal?"irRVL":"irFVL";
-        string vR=rearVocal?"irRVR":"irFVR";
-        string unused=rearVocal?
-            "[irFVL]anullsink;[irFVR]anullsink":
-            "[irRVL]anullsink;[irRVR]anullsink";
+        if(vocalSeat<0||vocalSeat>4)
+            throw new ArgumentOutOfRangeException(nameof(vocalSeat));
+        string[] vl={"irFVL","irRVL","irUFVL","irUBVL","irDFVL"};
+        string[] vr={"irFVR","irRVR","irUFVR","irUBVR","irDFVR"};
+        string vL=vl[vocalSeat],vR=vr[vocalSeat];
+        string unused=string.Join(";",vl.Where((_,i)=>i!=vocalSeat)
+            .Select(x=>"["+x+"]anullsink").Concat(
+             vr.Where((_,i)=>i!=vocalSeat).Select(x=>"["+x+"]anullsink")));
         string Conv(string s,string ir,string output)=>
             "["+s+"]["+ir+"]"+Afir+"["+output+"]";
         var parts=new List<string>
         {
             "[0:a]pan=mono|c0=0.5*c0+0.5*c1,volume="+Num(voice)+
                 ",asplit=2[vL][vR]",
-            "[1:a]volume="+Num(instr)+",asplit=2[drums0L][drums0R]",
+            "[1:a]volume="+Num(instr)+",asplit=3[drums0L][drums0R][drumD0]",
+            "[drumD0]pan=mono|c0=0.5*c0+0.5*c1,volume=0.12,asplit=2[dDFL][dDFR]",
             "[drums0L]pan=mono|c0=c0,asplit=2[dLL][dLR]",
             "[drums0R]pan=mono|c0=c1,asplit=2[dRL][dRR]",
             "[2:a]pan=mono|c0=0.5*c0+0.5*c1,volume="+Num(instr)+
                 ",asplit=2[bL][bR]",
             "[3:a]volume="+Num(instr)+
                 ",asplit=3[otherL0][otherR0][otherF0]",
-            "[otherL0]pan=mono|c0=c0,volume=0.7,asplit=2[oLL][oLR]",
-            "[otherR0]pan=mono|c0=c1,volume=0.7,asplit=2[oRL][oRR]",
-            "[otherF0]pan=mono|c0=0.5*c0+0.5*c1,volume=0.3,asplit=2[oFL][oFR]",
+            "[otherL0]pan=mono|c0=c0,asplit=2[oLs][oLu]",
+            "[oLs]volume=0.70,asplit=2[oLL][oLR]",
+            "[oLu]volume=0.24,asplit=2[oUFL][oUFR]",
+            "[otherR0]pan=mono|c0=c1,asplit=2[oRs][oRu]",
+            "[oRs]volume=0.70,asplit=2[oRL][oRR]",
+            "[oRu]volume=0.24,asplit=2[oUBL][oUBR]",
+            "[otherF0]pan=mono|c0=0.5*c0+0.5*c1,volume=0.10,asplit=2[oFL][oFR]",
             "[4:a]pan=mono|c0=0.5*c0+0.5*c1,volume="+Num(instr)+
                 ",asplit=2[resL][resR]",
             "[5:a]asplit=3[irFVL][irFOL][irFRL]",
@@ -56,6 +67,12 @@ internal static class SpatialObjectRouter
             "[10:a]asplit=2[irSLRD][irSLRO]",
             "[11:a]asplit=2[irSRLD][irSRLO]",
             "[12:a]asplit=2[irSRRD][irSRRO]",
+            "[13:a]asplit=2[irUFVL][irUFOL]",
+            "[14:a]asplit=2[irUFVR][irUFOR]",
+            "[15:a]asplit=2[irUBVL][irUBOL]",
+            "[16:a]asplit=2[irUBVR][irUBOR]",
+            "[17:a]asplit=2[irDFVL][irDFDL]",
+            "[18:a]asplit=2[irDFVR][irDFDR]",
             Conv("vL",vL,"vocOutL"),
             Conv("vR",vR,"vocOutR"),
             unused,
@@ -71,14 +88,22 @@ internal static class SpatialObjectRouter
             Conv("oRR","irSRRO","otherRightEarR"),
             Conv("oFL","irFOL","otherFrontL"),
             Conv("oFR","irFOR","otherFrontR"),
+            Conv("oUFL","irUFOL","otherUpFrontL"),
+            Conv("oUFR","irUFOR","otherUpFrontR"),
+            Conv("oUBL","irUBOL","otherUpBackL"),
+            Conv("oUBR","irUBOR","otherUpBackR"),
+            Conv("dDFL","irDFDL","drumDownFrontL"),
+            Conv("dDFR","irDFDR","drumDownFrontR"),
             Conv("resL","irFRL","residualFrontL"),
             Conv("resR","irFRR","residualFrontR"),
             "[vocOutL][bassOutL][drumLeftEarL][drumRightEarL]"+
-                "[otherLeftEarL][otherRightEarL][otherFrontL][residualFrontL]"+
-                "amix=inputs=8:normalize=0:duration=longest[L]",
+                "[otherLeftEarL][otherRightEarL][otherFrontL][otherUpFrontL]"+
+                "[otherUpBackL][drumDownFrontL][residualFrontL]"+
+                "amix=inputs=11:normalize=0:duration=longest[L]",
             "[vocOutR][bassOutR][drumLeftEarR][drumRightEarR]"+
-                "[otherLeftEarR][otherRightEarR][otherFrontR][residualFrontR]"+
-                "amix=inputs=8:normalize=0:duration=longest[R]",
+                "[otherLeftEarR][otherRightEarR][otherFrontR][otherUpFrontR]"+
+                "[otherUpBackR][drumDownFrontR][residualFrontR]"+
+                "amix=inputs=11:normalize=0:duration=longest[R]",
             "[L][R]amerge=inputs=2[out]"
         };
         string graph=string.Join(";",parts);
@@ -175,6 +200,9 @@ internal static class SpatialObjectRouter
     {
         string front=Graph(1,-0.5,false);
         string rear=Graph(1,-0.5,true);
+        string upFront=Graph(1,-0.5,2);
+        string upBack=Graph(1,-0.5,3);
+        string downFront=Graph(1,-0.5,4);
         static void Require(bool pass,string reason)
         {
             if(!pass)throw new InvalidOperationException("4-stem 3D self-test: "+reason);
@@ -183,6 +211,14 @@ internal static class SpatialObjectRouter
                 front.Contains("[vR][irFVR]")&&
                 rear.Contains("[vL][irRVL]")&&
                 rear.Contains("[vR][irRVR]"),"vocal front/rear");
+        Require(upFront.Contains("[vL][irUFVL]")&&
+                upBack.Contains("[vL][irUBVL]")&&
+                downFront.Contains("[vL][irDFVL]"),
+                "true measured elevated front/up-back/down-front H3 IR positioning");
+        Require(front.Contains("[oUFL][irUFOL]")&&
+                front.Contains("[oUBL][irUBOL]")&&
+                front.Contains("[dDFL][irDFDL]"),
+                "measured elevated musical ambience paths");
         Require(front.Contains("[dLL][irSLLD]")&&
                 front.Contains("[dRL][irSRLD]")&&
                 front.Contains("[oLL][irSLLO]")&&
