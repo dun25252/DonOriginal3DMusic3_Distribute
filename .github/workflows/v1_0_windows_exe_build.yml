@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'build/v1.0-repackage'
+      - 'research/3d-externalization-v1.0'
     paths:
       - 'build_tools/distribution_app/**'
       - '.github/workflows/v1_0_windows_exe_build.yml'
