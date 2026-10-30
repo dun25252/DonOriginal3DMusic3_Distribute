@@ -24,7 +24,7 @@ foreach ($x in @(
  'tools/stem_separator/stem_separator.exe',
  'licenses/HT-Demucs_LICENSE.txt',
  'licenses/demucs-onnx_LICENSE.txt')) { [void]$needed.Add($x) }
-foreach ($d in @('F','B')) {
+foreach ($d in @('F','B','UF','UB','DF')) {
   foreach ($e in @('L','R')) {
     [void]$needed.Add(('assets/brir/iosr_' + $d + '_room_' + $e + '.wav'))
   }
