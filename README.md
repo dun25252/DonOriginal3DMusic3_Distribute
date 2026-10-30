@@ -1,3 +1,24 @@
+## 最新 Ver.1.0 — Original3D（低音の輪郭／歌声の包囲感改善）
+
+**[最新EXEのWindowsビルド・自己検査](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/41032047400)**
+
+- 低音：32Hz以下の不要な低域を緩やかに抑え、95Hz付近を-2.7dB補正。低音量のGUI初期値75%（30〜100%、設定を保存）。
+- 歌声：主となる直接音は鮮明に保持。側方・上後方は18ms以降の室内反射だけを加える。歌声の空間感初期値55%（0〜100%、設定保存）。
+- 出力ファイル名：`曲名_v1.0_Original3D.flac`、重複時は`曲名(2)_v1.0_Original3D.flac`。
+- 4Stem・高さ方向のH3＋実測BRIR・ディスク番号2倍・日本語タイトル読み取りの修正を維持。
+- Windowsビルド・自己検査合格。Linux FFmpegで5音源・20IRの人工音声テストが成功（48kHz/24bit FLAC）。実曲での聴感評価は未実施。
+
+完全版ZIP（711ファイル）SHA-256：
+`a0e1b7ad139f0dd322f0d95653ed197a3a3d717b8aa27e95baee2d87b6effe0f`
+
+**注意：このGitHubの「Code → Download ZIP」には完全版EXE／音響素材は入りません。** 421MiB以上の完全版ZIPはユーザーへ別途提供されていますが、こちらのGitHub Releaseにはまだ登録されていません。ArtifactsのEXE単体を利用する場合は、既存の完全版フォルダーのEXEのみを上書きし、`assets/`、`tools/`、`licenses/` は削除しないでください。
+
+最新のソースとQA記録：
+[研究ブランチ](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/tree/research/3d-externalization-v1.0) ／
+[品質検証記録](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/blob/research/3d-externalization-v1.0/research/IMPLEMENTATION_AND_QA_v1.0.md)
+
+---
+
 ## 最新Ver.1.0 — 4Stem独立3D配置（2026-10-29）
 
 **[Windowsビルド成功・3分割EXE更新ファイル](https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/40869032785)**
