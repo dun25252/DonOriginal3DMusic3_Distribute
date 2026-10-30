@@ -207,6 +207,23 @@ internal static class DistributionAudioEngine
         return (lfile,rfile);
     }
 
+    private static async Task<(string L,string R)> BuildLateVocalAmbientIr(
+        string temp,string suffix,(string L,string R) original,
+        CancellationToken token)
+    {
+        string leftRaw=Path.Combine(temp,"vocal_late_"+suffix+"_L.f32");
+        string rightRaw=Path.Combine(temp,"vocal_late_"+suffix+"_R.f32");
+        await DecodeAsync(original.L,leftRaw,1,token);
+        await DecodeAsync(original.R,rightRaw,1,token);
+        float[] left=ReadFloat(leftRaw),right=ReadFloat(rightRaw);
+        SpatialDepthEnvelope.IsolateLateAmbient(left,right);
+        string outputLeft=Path.Combine(temp,"vocal_late_"+suffix+"_L.wav");
+        string outputRight=Path.Combine(temp,"vocal_late_"+suffix+"_R.wav");
+        WriteWavMono(outputLeft,left);
+        WriteWavMono(outputRight,right);
+        return (outputLeft,outputRight);
+    }
+
     private static async Task<(string L,string R)> BuildHybridIr(
         string temp, string direction, int angle, double roomPercent,
         CancellationToken token, string irMode="room",
@@ -595,7 +612,7 @@ internal static class DistributionAudioEngine
         Directory.CreateDirectory(dir);
         string title=await SourceTitle(original,token);
         for(int n=1;n<=10000;n++) {
-            string finalName=title+(n==1?"":"("+n+")")+"_v1.0.flac";
+            string finalName=title+(n==1?"":"("+n+")")+"_v1.0_Original3D.flac";
             string dest=Path.Combine(dir,finalName);
             FileStream? writer=null;
             try {writer=new FileStream(dest,FileMode.CreateNew,FileAccess.Write,FileShare.None);}
@@ -640,9 +657,9 @@ internal static class DistributionAudioEngine
                 Path.Combine(root,"Cats are dangerous.flac"),destination,cts);
             string second=await MoveOneOutput(rendered,
                 Path.Combine(root,"Cats are dangerous.flac"),destination,cts);
-            Require(Path.GetFileName(first)=="Cats are dangerous_v1.0.flac",
+            Require(Path.GetFileName(first)=="Cats are dangerous_v1.0_Original3D.flac",
                 "first output naming");
-            Require(Path.GetFileName(second)=="Cats are dangerous(2)_v1.0.flac",
+            Require(Path.GetFileName(second)=="Cats are dangerous(2)_v1.0_Original3D.flac",
                 "duplicate output naming");
             Require(Path.GetFileName(Path.GetDirectoryName(first)!)=="3D変換先",
                 "output directory naming");
@@ -842,12 +859,17 @@ internal static class DistributionAudioEngine
 
     public static async Task<string> ConvertAsync(string input,string outputBase,
         double voiceDb,double backingDb,double roomPercent,
-        int vocalSeat,bool doubleDiscNumber,int? manualDisc,
+        int vocalSeat,int bassPercent,int vocalSpacePercent,
+        bool doubleDiscNumber,int? manualDisc,
         IProgress<int>? progress,IProgress<string>? discProgress,
         CancellationToken token)
     {
         if(!File.Exists(input))throw new FileNotFoundException("変換元がありません",input);
         if(vocalSeat<0 || vocalSeat>4)throw new ArgumentOutOfRangeException(nameof(vocalSeat));
+        if(bassPercent<30 || bassPercent>100)
+            throw new ArgumentOutOfRangeException(nameof(bassPercent));
+        if(vocalSpacePercent<0 || vocalSpacePercent>100)
+            throw new ArgumentOutOfRangeException(nameof(vocalSpacePercent));
         if(string.IsNullOrWhiteSpace(outputBase))throw new ArgumentException("保存先が空です");
         if(!double.IsFinite(roomPercent) || roomPercent<20 || roomPercent>100)
             throw new ArgumentOutOfRangeException(nameof(roomPercent));
@@ -895,10 +917,18 @@ internal static class DistributionAudioEngine
                 elevation:30,depth:SpatialDepthEnvelope.Depth.Background);
             var downFront=await BuildHybridIr(temp,"DF",0,roomPercent,token,
                 elevation:-30,depth:SpatialDepthEnvelope.Depth.Midfield);
+            // Quiet late measured room reflections around the listener:
+            // Keep all H3 direct vocal content in its selected source position,
+            // only place late left/right/upper-back room energy into the surround halo.
+            var vocalSideLeft=await BuildLateVocalAmbientIr(temp,"sideL",sideLeft,token);
+            var vocalSideRight=await BuildLateVocalAmbientIr(temp,"sideR",sideRight,token);
+            var vocalUpBack=await BuildLateVocalAmbientIr(temp,"upBack",upBack,token);
             progress?.Report(59);
             var ir = new[] {front.L,front.R,rear.L,rear.R,
                 sideLeft.L,sideLeft.R,sideRight.L,sideRight.R,
-                upFront.L,upFront.R,upBack.L,upBack.R,downFront.L,downFront.R};
+                upFront.L,upFront.R,upBack.L,upBack.R,downFront.L,downFront.R,
+                vocalSideLeft.L,vocalSideLeft.R,vocalSideRight.L,vocalSideRight.R,
+                vocalUpBack.L,vocalUpBack.R};
             var command=new List<string>{
                 "-hide_banner","-loglevel","error","-y"
             };
@@ -909,7 +939,7 @@ internal static class DistributionAudioEngine
             foreach(string wav in ir){command.Add("-i");command.Add(wav);}
             string scene=Path.Combine(temp,"scene.f32");
             command.AddRange(new[]{"-filter_complex",
-                SpatialObjectRouter.Graph(voiceDb,backingDb,vocalSeat),
+                SpatialObjectRouter.Graph(voiceDb,backingDb,vocalSeat,bassPercent,vocalSpacePercent),
                 "-map","[out]","-ar","48000","-ac","2","-f","f32le",scene});
             await FfmpegService.RunAsync(Ff,command,token);
             progress?.Report(81);
