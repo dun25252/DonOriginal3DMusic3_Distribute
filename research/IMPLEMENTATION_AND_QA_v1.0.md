@@ -55,3 +55,17 @@ Original IoSR BRIR copyright/attribution and model/FFmpeg redistribution license
 - Linux FFmpeg HUTUBS pp3 SOFA smoke tests completed at (azimuth,elevation) 0,+30; 180,+30; 0,-30; 90,0; -90,0 with no FFmpeg error. This checks the HRTF option syntax only.
 - Authenticated 5-position original IoSR BRIRs were used to render 15 artificial 3-second direction/depth files as a separate listening test archive. These files are test signals, not a genuine song.
 - These tests DO NOT cover the Windows EXE processing an actual 4-stem separated music recording with the complete H3+IoSR pipeline, or validated subjectively perceived envelopment.
+
+## 2026-10-30 Bass clarity / vocal envelopment / output name update
+- User feedback: overbearing low-frequency thump, voice head-locked to one front point despite clear recording, needs high fidelity.
+- `SpatialObjectRouter.Graph`: independent bass-stem highpass at 32Hz plus 95Hz narrow bell -2.7dB to reduce boom, default bass 75% with 30–100% saved GUI adjustment. No global bass EQ on all music.
+- `SpatialDepthEnvelope.IsolateLateAmbient`: remove vocal direct impulse through ~18ms after peak, smooth fade of measured L/R room reflections up to 72ms, preserve later measured room tail.
+- `DistributionAudioEngine.BuildLateVocalAmbientIr`: renders side-left, side-right and elevated rear measured late BRIRs as six additional mono IRs without duplicating the direct vocal into multiple speaker positions.
+- `SpatialObjectRouter.Graph`: highpass at 160Hz/lowpass 9kHz on late vocal ambience only, soft send gains controlled with 0–100% GUI setting (default 55%). The main vocal direct path remains unfiltered and independently placed.
+- `Program.cs`: adds two saved WinForms controls, bass and vocal-space percentages. FLAC output names `曲名_v1.0_Original3D.flac` with `曲名(2)_v1.0_Original3D.flac` when duplicates exist.
+- Windows GUI compile and structural self-test PASS: https://github.com/dun25252/DonOriginal3DMusic3_Distribute/actions/runs/41032047400
+- Independent synthetic FFmpeg test PASS on Linux using 5 audio streams and 20 measured/test IRs: filtergraph had 110 valid named pads, no unconnected pads, stereo FLAC 48000Hz/24bit, 28800 audio frames, peak ~0.00176. **Not** an end-to-end full Windows HTDemucs music test.
+- Complete runtime ZIP was created locally using prior 711-file complete distribution ZIP and current Windows-compiled EXE; every entry CRC verified, retained all measured BRIRs/models/tools/licenses, duplicate/title tests covered in executable selftest.
+- Complete ZIP name `DonOriginal3DMusic3_v1.0_Original3D_Windows.zip`, bytes 457303724, SHA256 `a0e1b7ad139f0dd322f0d95653ed197a3a3d717b8aa27e95baee2d87b6effe0f`.
+- 10 × <=48MiB pieces and a small restore kit rebuilt and SHA256-rejoined successfully.
+- Real track and subjective headphone envelopment/fidelity NOT TESTED yet; the earlier public repo Code download still does not include this large ZIP.
