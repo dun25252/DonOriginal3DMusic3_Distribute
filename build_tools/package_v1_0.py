@@ -46,7 +46,7 @@ README = """DonOriginal3DMusic3 Ver.1.0
 3. 「選択した曲をまとめて3D変換」を押す
 
 出力先: 保存先の「3D変換先」フォルダー
-ファイル名: 曲名_v1.0.flac （48kHz / 24bit）
+ファイル名: 曲名_v1.0_Original3D.flac （48kHz / 24bit）
 
 ・Windows 10/11 64bit向け
 ・assetsとtoolsフォルダーは削除しないでください
