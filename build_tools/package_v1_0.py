@@ -29,7 +29,7 @@ REQUIRED = {
     "tools/ffmpeg/bin/ffprobe.exe",
     "tools/stem_separator/stem_separator.exe",
 }
-for direction in ("F", "B"):
+for direction in ("F", "B", "UF", "UB", "DF"):
     for ear in ("L", "R"):
         REQUIRED.add(f"assets/brir/iosr_{direction}_room_{ear}.wav")
 for side in ("sideL", "sideR"):
@@ -142,8 +142,7 @@ def relative_resource_path(member_name: str) -> str | None:
     dst = "/".join(raw[k:])
     low = dst.lower()
     if low.startswith("assets/brir/"):
-        # Distribution v1.0 uses exactly F/B room and F left/right side.
-        # All other old experimental directional BRIRs remain in the v1.48 source ZIP.
+        # Measured 3D includes F/B/UF/UB/DF + F left/right side room IRs.
         return dst if low in {p.lower() for p in REQUIRED} else None
     if low == "assets/hrtf/hutubs_pp3.sofa":
         return "assets/hrtf/hutubs_pp3.sofa"
