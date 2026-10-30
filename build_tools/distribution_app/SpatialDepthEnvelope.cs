@@ -52,6 +52,27 @@ internal static class SpatialDepthEnvelope
         }
     }
 
+    // Produce a pure room-tail impulse for the secondary vocal ambience
+    // channels. The direct vocal is NEVER re-positioned to the side or rear.
+    // The two ears receive the identical onset-based fade, so stereo timing
+    // and ear-to-ear magnitude ratios are not artificially altered.
+    internal static void IsolateLateAmbient(float[] left,float[] right)
+    {
+        if(left.Length!=right.Length || left.Length<SampleRate/5)
+            throw new InvalidDataException("Vocal ambience BRIR pair is invalid");
+        int onset=FindCommonOnset(left,right);
+        int fadeStart=onset+(int)(SampleRate*0.018);
+        int fadeEnd=onset+(int)(SampleRate*0.072);
+        for(int i=0;i<left.Length;i++)
+        {
+            float gain=i<=fadeStart ? 0f :
+                i>=fadeEnd ? 1f :
+                (float)Smooth(i,fadeStart,fadeEnd);
+            left[i]*=gain;
+            right[i]*=gain;
+        }
+    }
+
     internal static int FindCommonOnset(float[] left,float[] right)
     {
         int n=Math.Min(4800,left.Length);
@@ -121,5 +142,16 @@ internal static class SpatialDepthEnvelope
               "relative depth must create ordered direct/reverberant ratios");
         Check(nearL.SequenceEqual(nearR)&&farL.SequenceEqual(farR),
               "equal L/R envelope must preserve unchanged interaural balance");
+        var vocalLateLeft=Create();
+        var vocalLateRight=Create();
+        IsolateLateAmbient(vocalLateLeft,vocalLateRight);
+        Check(vocalLateLeft[600]==0f && vocalLateRight[600]==0f &&
+              vocalLateLeft[1200]==0f && vocalLateRight[1200]==0f,
+              "vocal direct and first 18 ms of room must not leak into halo");
+        Check(Math.Abs(vocalLateLeft[12000]-0.04f)<0.0000001f &&
+              Math.Abs(vocalLateRight[12000]-0.04f)<0.0000001f,
+              "late binaural reflections must be retained without EQ");
+        Check(vocalLateLeft.SequenceEqual(vocalLateRight),
+              "late IR window must be identical in both ears");
     }
 }
