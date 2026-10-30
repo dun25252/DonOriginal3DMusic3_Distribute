@@ -75,7 +75,7 @@ def check_conversion(root: Path, expected_count: int | None = None) -> None:
     if expected_count is not None and len(flacs) != expected_count:
         bad.append(f"Expected {expected_count} FLAC files, found {len(flacs)}")
     for p in flacs:
-        if not p.name.endswith("_v1.0.flac"):
+        if not p.name.endswith("_v1.0_Original3D.flac"):
             bad.append("Invalid FLAC filename: " + str(p))
         if p.name.startswith(("B_", "A_", "00_", "Stage")):
             bad.append("Research prefix leaked: " + str(p))
