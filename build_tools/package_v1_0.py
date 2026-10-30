@@ -21,7 +21,7 @@ import zipfile
 V148_BYTES = 513_598_015
 V148_SHA256 = "9f2de7b19f1b82bf2d4fe14b4c44f6d821c83115feeee3614c12cc90ff04c5da"
 PACKAGE_ROOT = "DonOriginal3DMusic3_v1.0"
-OUTFILE = "DonOriginal3DMusic3_v1.0_Windows.zip"
+OUTFILE = "DonOriginal3DMusic3_v1.0_Experimental3D_Windows.zip"
 
 REQUIRED = {
     "assets/hrtf/hutubs_pp3.sofa",
@@ -80,7 +80,7 @@ EXCLUDED_NAMES = {
     "donoriginal3dmusic3_管理用.txt", "readme.md",
 }
 EXCLUDED_SUFFIXES = (".cmd", ".bat", ".ps1", ".log", ".pdb",
-                     ".bak", ".cs", ".csproj", ".pyc", ".py")
+                     ".bak", ".cs", ".csproj")
 DEBUG_NAMES = ("debug", "positiontrace", "stagec_", "staged_",
                "stagee_", "音響検査", "測定と出典")
 
@@ -141,6 +141,8 @@ def relative_resource_path(member_name: str) -> str | None:
         return None
     dst = "/".join(raw[k:])
     low = dst.lower()
+    if low == "assets/brir/brir_license.txt":
+        return dst
     if low.startswith("assets/brir/"):
         # Measured 3D includes F/B/UF/UB/DF + F left/right side room IRs.
         return dst if low in {p.lower() for p in REQUIRED} else None
@@ -182,8 +184,8 @@ def gather(archive: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
         key = dest.lower()
         if key in canonical:
             raise ValueError("Duplicated asset path (case-insensitive): " + dest)
-        if entry.file_size <= 0:
-            raise ValueError("Unexpected empty asset: " + dest)
+        if entry.file_size <= 0 and not key.startswith("tools/stem_separator/_internal/"):
+            raise ValueError("Unexpected empty required asset: " + dest)
         canonical.add(key)
         found[dest] = entry
     missing = {p for p in REQUIRED if p.lower() not in canonical}
