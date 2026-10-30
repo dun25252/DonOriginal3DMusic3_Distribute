@@ -46,6 +46,8 @@ internal sealed class DistributionSettings
     public decimal BackingGain {get;set;} = -0.5m;
     public bool DoubleDiscNumber {get;set;} = true;
     public decimal LateRoomPercent {get;set;} = 45m;
+    public decimal BassPercent {get;set;} = 75m;
+    public decimal VocalSpacePercent {get;set;} = 55m;
     public bool VocalRear {get;set;} = false;
     public int VocalSeat {get;set;} = -1; // carry over historical front/rear settings
     public bool ManualDiscNumber {get;set;} = false;
@@ -86,6 +88,12 @@ internal sealed class DistributionForm : Form
     };
     private readonly ComboBox _vocalPosition = new() {
         DropDownStyle=ComboBoxStyle.DropDownList,Width=110
+    };
+    private readonly NumericUpDown _bassPercent = new() {
+        Minimum=30,Maximum=100,Increment=5,DecimalPlaces=0,Width=66,Value=75
+    };
+    private readonly NumericUpDown _vocalSpacePercent = new() {
+        Minimum=0,Maximum=100,Increment=5,DecimalPlaces=0,Width=66,Value=55
     };
     private readonly NumericUpDown _roomPercent = new() {
         Minimum=20,Maximum=100,Increment=5,DecimalPlaces=0,Width=65,Value=45
@@ -138,6 +146,9 @@ internal sealed class DistributionForm : Form
         _backing.Value=Math.Clamp(_settings.BackingGain,_backing.Minimum,_backing.Maximum);
         _doubleDisc.Checked=_settings.DoubleDiscNumber;
         _roomPercent.Value=Math.Clamp(_settings.LateRoomPercent,_roomPercent.Minimum,_roomPercent.Maximum);
+        _bassPercent.Value=Math.Clamp(_settings.BassPercent,_bassPercent.Minimum,_bassPercent.Maximum);
+        _vocalSpacePercent.Value=Math.Clamp(_settings.VocalSpacePercent,
+            _vocalSpacePercent.Minimum,_vocalSpacePercent.Maximum);
         _vocalPosition.Items.AddRange(new object[]{
             "前方 0°","後方 180°","上前 +30°","上後 +30°","下前 -30°"
         });
@@ -163,6 +174,8 @@ internal sealed class DistributionForm : Form
             SaveSettings();
         };
         _roomPercent.ValueChanged+=(_,_)=>SaveSettings();
+        _bassPercent.ValueChanged+=(_,_)=>SaveSettings();
+        _vocalSpacePercent.ValueChanged+=(_,_)=>SaveSettings();
         _vocalPosition.SelectedIndexChanged+=(_,_)=>SaveSettings();
         _manualDisc.CheckedChanged+=(_,_)=>{
             _manualDiscValue.Enabled=_doubleDisc.Checked && _manualDisc.Checked;
@@ -241,8 +254,12 @@ internal sealed class DistributionForm : Form
         roomOptions.Controls.Add(new Label{Text="室内反射 (%)",AutoSize=true,
             Margin=new Padding(0,6,5,0)});
         roomOptions.Controls.Add(_roomPercent);
-        roomOptions.Controls.Add(new Label{Text="3Dモード：前景/中景/後景の直接音と反射音を連動",
-            AutoSize=true,ForeColor=SystemColors.GrayText,Margin=new Padding(10,6,0,0)});
+        roomOptions.Controls.Add(new Label{Text="低音の量 (%)",AutoSize=true,
+            Margin=new Padding(12,6,5,0)});
+        roomOptions.Controls.Add(_bassPercent);
+        roomOptions.Controls.Add(new Label{Text="歌声の空間感 (%)",AutoSize=true,
+            Margin=new Padding(12,6,5,0)});
+        roomOptions.Controls.Add(_vocalSpacePercent);
         bottom.Controls.Add(roomOptions,0,3);bottom.SetColumnSpan(roomOptions,3);
         bottom.Controls.Add(hint,0,4);bottom.SetColumnSpan(hint,3);
         root.Controls.Add(bottom,0,3);
@@ -267,6 +284,8 @@ internal sealed class DistributionForm : Form
         _settings.BackingGain=_backing.Value;
         _settings.DoubleDiscNumber=_doubleDisc.Checked;
         _settings.LateRoomPercent=_roomPercent.Value;
+        _settings.BassPercent=_bassPercent.Value;
+        _settings.VocalSpacePercent=_vocalSpacePercent.Value;
         _settings.VocalRear=_vocalPosition.SelectedIndex==1;
         _settings.VocalSeat=_vocalPosition.SelectedIndex;
         _settings.ManualDiscNumber=_manualDisc.Checked;
@@ -344,7 +363,8 @@ internal sealed class DistributionForm : Form
         _busy=value;
         foreach(Control c in new Control[]{_add,_folder,_remove,_clear,_start,
             _browse,_songs,_output,_vocal,_backing,_doubleDisc,_roomPercent,
-            _vocalPosition,_manualDisc,_manualDiscValue})c.Enabled=!value;
+            _bassPercent,_vocalSpacePercent,_vocalPosition,
+            _manualDisc,_manualDiscValue})c.Enabled=!value;
         if(!value) {
             _manualDisc.Enabled=_doubleDisc.Checked;
             _manualDiscValue.Enabled=_doubleDisc.Checked && _manualDisc.Checked;
@@ -396,6 +416,7 @@ internal sealed class DistributionForm : Form
                     await DistributionAudioEngine.ConvertAsync(
                         file,output,(double)_vocal.Value,(double)_backing.Value,
                         (double)_roomPercent.Value,_vocalPosition.SelectedIndex,
+                        (int)_bassPercent.Value,(int)_vocalSpacePercent.Value,
                         _doubleDisc.Checked,
                         _manualDisc.Checked ? (int)_manualDiscValue.Value : null,
                         progress,discProgress,_cts.Token);
