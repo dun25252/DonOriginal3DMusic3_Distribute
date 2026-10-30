@@ -20,16 +20,22 @@ internal static class SpatialObjectRouter
         x.ToString("0.#########",CultureInfo.InvariantCulture);
 
     // Audio inputs 0..4: vocals, drums, bass, other, residual.
-    // Impulse inputs 5..12: front L/R, rear L/R, side-left L/R, side-right L/R.
+    // IR 5..18: seven 3D directions x two ears; 19..24: isolated late
+    // vocal room reflections for sideL/sideR/upperBack, two ears each.
     public static string Graph(double vocalDb,double backingDb,bool rearVocal) =>
         Graph(vocalDb,backingDb,rearVocal?1:0);
 
-    public static string Graph(double vocalDb,double backingDb,int vocalSeat)
+    public static string Graph(double vocalDb,double backingDb,int vocalSeat,
+        int bassPercent=75,int vocalSpacePercent=55)
     {
         double voice=Math.Pow(10,vocalDb/20);
         double instr=Math.Pow(10,backingDb/20);
         if(vocalSeat<0||vocalSeat>4)
             throw new ArgumentOutOfRangeException(nameof(vocalSeat));
+        if(bassPercent<30||bassPercent>100)
+            throw new ArgumentOutOfRangeException(nameof(bassPercent));
+        if(vocalSpacePercent<0||vocalSpacePercent>100)
+            throw new ArgumentOutOfRangeException(nameof(vocalSpacePercent));
         string[] vl={"irFVL","irRVL","irUFVL","irUBVL","irDFVL"};
         string[] vr={"irFVR","irRVR","irUFVR","irUBVR","irDFVR"};
         string vL=vl[vocalSeat],vR=vr[vocalSeat];
@@ -41,12 +47,29 @@ internal static class SpatialObjectRouter
         var parts=new List<string>
         {
             "[0:a]pan=mono|c0=0.5*c0+0.5*c1,volume="+Num(voice)+
-                ",asplit=2[vL][vR]",
+                ",asplit=2[vDry][vHalo]",
+            "[vDry]asplit=2[vL][vR]",
+            // The direct vocal has no loss of clarity or HF information.
+            // A filtered, quiet replica drives ONLY late-reflection IRs.
+            // No additional copies of the direct vocal are positioned at the sides.
+            "[vHalo]highpass=f=160,lowpass=f=9000,asplit=3"+
+                "[vhSideLeft][vhSideRight][vhUpperBack]",
+            "[vhSideLeft]volume="+Num(vocalSpacePercent/100d*0.48)+
+                ",asplit=2[vhSLL][vhSLR]",
+            "[vhSideRight]volume="+Num(vocalSpacePercent/100d*0.48)+
+                ",asplit=2[vhSRL][vhSRR]",
+            "[vhUpperBack]volume="+Num(vocalSpacePercent/100d*0.34)+
+                ",asplit=2[vhUBL][vhUBR]",
             "[1:a]volume="+Num(instr)+",asplit=3[drums0L][drums0R][drumD0]",
             "[drumD0]pan=mono|c0=0.5*c0+0.5*c1,volume=0.12,asplit=2[dDFL][dDFR]",
             "[drums0L]pan=mono|c0=c0,asplit=2[dLL][dLR]",
             "[drums0R]pan=mono|c0=c1,asplit=2[dRL][dRR]",
-            "[2:a]pan=mono|c0=0.5*c0+0.5*c1,volume="+Num(instr)+
+            // Remove sub-bass rumble and gently attenuate the 80-120 Hz
+            // boom in the isolated bass STEM (not the whole song).
+            // Process before the ear split, retaining ITD/ILD in the BRIR.
+            "[2:a]pan=mono|c0=0.5*c0+0.5*c1,"+
+                "highpass=f=32,equalizer=f=95:t=q:w=0.85:g=-2.7,"+
+                "volume="+Num(instr*bassPercent/100d)+
                 ",asplit=2[bL][bR]",
             "[3:a]volume="+Num(instr)+
                 ",asplit=3[otherL0][otherR0][otherF0]",
@@ -73,6 +96,12 @@ internal static class SpatialObjectRouter
             "[16:a]asplit=2[irUBVR][irUBOR]",
             "[17:a]asplit=2[irDFVL][irDFDL]",
             "[18:a]asplit=2[irDFVR][irDFDR]",
+            "[19:a]anull[irHaloSLL]",
+            "[20:a]anull[irHaloSLR]",
+            "[21:a]anull[irHaloSRL]",
+            "[22:a]anull[irHaloSRR]",
+            "[23:a]anull[irHaloUBL]",
+            "[24:a]anull[irHaloUBR]",
             Conv("vL",vL,"vocOutL"),
             Conv("vR",vR,"vocOutR"),
             unused,
@@ -96,14 +125,22 @@ internal static class SpatialObjectRouter
             Conv("dDFR","irDFDR","drumDownFrontR"),
             Conv("resL","irFRL","residualFrontL"),
             Conv("resR","irFRR","residualFrontR"),
+            Conv("vhSLL","irHaloSLL","vocalLateSideLL"),
+            Conv("vhSLR","irHaloSLR","vocalLateSideLR"),
+            Conv("vhSRL","irHaloSRL","vocalLateSideRL"),
+            Conv("vhSRR","irHaloSRR","vocalLateSideRR"),
+            Conv("vhUBL","irHaloUBL","vocalLateUpBackL"),
+            Conv("vhUBR","irHaloUBR","vocalLateUpBackR"),
             "[vocOutL][bassOutL][drumLeftEarL][drumRightEarL]"+
                 "[otherLeftEarL][otherRightEarL][otherFrontL][otherUpFrontL]"+
                 "[otherUpBackL][drumDownFrontL][residualFrontL]"+
-                "amix=inputs=11:normalize=0:duration=longest[L]",
+                "[vocalLateSideLL][vocalLateSideRL][vocalLateUpBackL]"+
+                "amix=inputs=14:normalize=0:duration=longest[L]",
             "[vocOutR][bassOutR][drumLeftEarR][drumRightEarR]"+
                 "[otherLeftEarR][otherRightEarR][otherFrontR][otherUpFrontR]"+
                 "[otherUpBackR][drumDownFrontR][residualFrontR]"+
-                "amix=inputs=11:normalize=0:duration=longest[R]",
+                "[vocalLateSideLR][vocalLateSideRR][vocalLateUpBackR]"+
+                "amix=inputs=14:normalize=0:duration=longest[R]",
             "[L][R]amerge=inputs=2[out]"
         };
         string graph=string.Join(";",parts);
@@ -219,6 +256,15 @@ internal static class SpatialObjectRouter
                 front.Contains("[oUBL][irUBOL]")&&
                 front.Contains("[dDFL][irDFDL]"),
                 "measured elevated musical ambience paths");
+        Require(front.Contains("highpass=f=32,equalizer=f=95:t=q:w=0.85:g=-2.7") &&
+                front.Contains("volume=0.75,asplit=2[bL][bR]"),
+                "bass stem must be anti-boom filtered before spatial convolution");
+        Require(front.Contains("[vhSLL][irHaloSLL]") &&
+                front.Contains("[vhUBL][irHaloUBL]") &&
+                front.Contains("amix=inputs=14"),
+                "direct vocal stays separate from side/up-back late ambience");
+        Require(Graph(1,-0.5,0,100,0).Contains("volume=0,asplit=2[vhSLL][vhSLR]"),
+                "vocal halo 0 percent must be silent");
         Require(front.Contains("[dLL][irSLLD]")&&
                 front.Contains("[dRL][irSRLD]")&&
                 front.Contains("[oLL][irSLLO]")&&
