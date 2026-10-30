@@ -48,3 +48,10 @@ This update needs an EXISTING complete installation with tools/assets/models.
 
 ## Licensing
 Original IoSR BRIR copyright/attribution and model/FFmpeg redistribution licenses remain applicable, even for private friend-to-friend distribution.
+
+## Additional measured-audio execution results (2026-10-30)
+- Linux FFmpeg was tested with all five simulated stem inputs and all 14 real (original v1.48) measured 48kHz mono ear IRs. Full 19-input binaural afir/amix filter graph returned exit code 0 and produced a valid 48kHz stereo FLAC (24-bit write mode).
+- Output: 24,000 frames, 2 channels, finite samples; peak ≈0.00261736, RMS ≈0.00058072. Test is deliberately low level and does not validate final loudness or a song's spectral fidelity.
+- Linux FFmpeg HUTUBS pp3 SOFA smoke tests completed at (azimuth,elevation) 0,+30; 180,+30; 0,-30; 90,0; -90,0 with no FFmpeg error. This checks the HRTF option syntax only.
+- Authenticated 5-position original IoSR BRIRs were used to render 15 artificial 3-second direction/depth files as a separate listening test archive. These files are test signals, not a genuine song.
+- These tests DO NOT cover the Windows EXE processing an actual 4-stem separated music recording with the complete H3+IoSR pipeline, or validated subjectively perceived envelopment.
