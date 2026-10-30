@@ -51,7 +51,7 @@ internal static class DistributionAudioEngine
     public static IReadOnlyList<string> MissingAssets()
     {
         var req = new List<string> { Ff, Fp, Sofa };
-        foreach (string dir in new[] {"F", "B"})
+        foreach (string dir in new[] {"F", "B", "UF", "UB", "DF"})
             foreach (string ear in new[] {"L", "R"})
                 req.Add(Ir(dir, "room", ear));
         foreach (string side in new[] {"sideL_room", "sideR_room"})
@@ -209,7 +209,9 @@ internal static class DistributionAudioEngine
 
     private static async Task<(string L,string R)> BuildHybridIr(
         string temp, string direction, int angle, double roomPercent,
-        CancellationToken token, string irMode="room")
+        CancellationToken token, string irMode="room",
+        int elevation=0,
+        SpatialDepthEnvelope.Depth depth=SpatialDepthEnvelope.Depth.Midfield)
     {
         string mono = Path.Combine(temp, "test_impulse.f32");
         if (!File.Exists(mono)) {
@@ -225,7 +227,7 @@ internal static class DistributionAudioEngine
             "-hide_banner", "-loglevel", "error", "-y",
             "-f", "f32le", "-ar", "48000", "-ac", "1", "-i", mono,
             "-af", "pan=7.1|FC=c0,sofalizer=sofa='assets/hrtf/hutubs_pp3.sofa':" +
-                   "type=freq:speakers='FC " + angle + " 0':" +
+                   "type=freq:speakers='FC " + angle + " " + elevation + "':" +
                    "interpolate=1:anglestep=1:normalize=0:lfegain=-20",
             "-ar", "48000", "-ac", "2", "-f", "f32le", hrtfF32
         }, token);
@@ -234,7 +236,7 @@ internal static class DistributionAudioEngine
         await DecodeAsync(Ir(direction, irMode, "L"), originalL, 1, token);
         await DecodeAsync(Ir(direction, irMode, "R"), originalR, 1, token);
         var both = ReplaceDirect(ReadFloat(originalL), ReadFloat(originalR), ReadFloat(hrtfF32));
-        ScaleLateRoomReflections(both.L,both.R,roomPercent);
+        SpatialDepthEnvelope.Apply(both.L,both.R,depth,roomPercent);
         string outL = Path.Combine(temp, "v1.0_" + location + "_Hybrid_L.wav");
         string outR = Path.Combine(temp, "v1.0_" + location + "_Hybrid_R.wav");
         WriteWavMono(outL, both.L);
@@ -783,6 +785,7 @@ internal static class DistributionAudioEngine
             catch(InvalidDataException){rejectedUnused=true;}
             Require(rejectedUnused,"dangling IR branch must fail graph gate");
             SpatialObjectRouter.SelfTest();
+            SpatialDepthEnvelope.SelfTest();
             Require(frontGraph.Contains("[bF0]volume=0.1") &&
                     frontGraph.Contains("[bR0]volume=0.9"),
                 "rear bass routed correctly");
@@ -839,11 +842,12 @@ internal static class DistributionAudioEngine
 
     public static async Task<string> ConvertAsync(string input,string outputBase,
         double voiceDb,double backingDb,double roomPercent,
-        bool vocalRear,bool doubleDiscNumber,int? manualDisc,
+        int vocalSeat,bool doubleDiscNumber,int? manualDisc,
         IProgress<int>? progress,IProgress<string>? discProgress,
         CancellationToken token)
     {
         if(!File.Exists(input))throw new FileNotFoundException("変換元がありません",input);
+        if(vocalSeat<0 || vocalSeat>4)throw new ArgumentOutOfRangeException(nameof(vocalSeat));
         if(string.IsNullOrWhiteSpace(outputBase))throw new ArgumentException("保存先が空です");
         if(!double.IsFinite(roomPercent) || roomPercent<20 || roomPercent>100)
             throw new ArgumentOutOfRangeException(nameof(roomPercent));
@@ -877,13 +881,24 @@ internal static class DistributionAudioEngine
             await Task.Run(()=>SpatialObjectRouter.MakeResidual(
                 source,voc,drums,bass,other,remaining,token),token);
             progress?.Report(51);
-            var front=await BuildHybridIr(temp,"F",0,roomPercent,token);
-            var rear=await BuildHybridIr(temp,"B",180,roomPercent,token);
-            var sideLeft=await BuildHybridIr(temp,"F",90,roomPercent,token,"sideL_room");
-            var sideRight=await BuildHybridIr(temp,"F",-90,roomPercent,token,"sideR_room");
+            var front=await BuildHybridIr(temp,"F",0,roomPercent,token,
+                depth:SpatialDepthEnvelope.Depth.Foreground);
+            var rear=await BuildHybridIr(temp,"B",180,roomPercent,token,
+                depth:SpatialDepthEnvelope.Depth.Background);
+            var sideLeft=await BuildHybridIr(temp,"F",90,roomPercent,token,
+                "sideL_room",depth:SpatialDepthEnvelope.Depth.Midfield);
+            var sideRight=await BuildHybridIr(temp,"F",-90,roomPercent,token,
+                "sideR_room",depth:SpatialDepthEnvelope.Depth.Midfield);
+            var upFront=await BuildHybridIr(temp,"UF",0,roomPercent,token,
+                elevation:30,depth:SpatialDepthEnvelope.Depth.Midfield);
+            var upBack=await BuildHybridIr(temp,"UB",180,roomPercent,token,
+                elevation:30,depth:SpatialDepthEnvelope.Depth.Background);
+            var downFront=await BuildHybridIr(temp,"DF",0,roomPercent,token,
+                elevation:-30,depth:SpatialDepthEnvelope.Depth.Midfield);
             progress?.Report(59);
             var ir = new[] {front.L,front.R,rear.L,rear.R,
-                sideLeft.L,sideLeft.R,sideRight.L,sideRight.R};
+                sideLeft.L,sideLeft.R,sideRight.L,sideRight.R,
+                upFront.L,upFront.R,upBack.L,upBack.R,downFront.L,downFront.R};
             var command=new List<string>{
                 "-hide_banner","-loglevel","error","-y"
             };
@@ -894,7 +909,7 @@ internal static class DistributionAudioEngine
             foreach(string wav in ir){command.Add("-i");command.Add(wav);}
             string scene=Path.Combine(temp,"scene.f32");
             command.AddRange(new[]{"-filter_complex",
-                SpatialObjectRouter.Graph(voiceDb,backingDb,vocalRear),
+                SpatialObjectRouter.Graph(voiceDb,backingDb,vocalSeat),
                 "-map","[out]","-ar","48000","-ac","2","-f","f32le",scene});
             await FfmpegService.RunAsync(Ff,command,token);
             progress?.Report(81);
