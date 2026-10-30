@@ -257,7 +257,8 @@ internal static class SpatialObjectRouter
                 front.Contains("[dDFL][irDFDL]"),
                 "measured elevated musical ambience paths");
         Require(front.Contains("highpass=f=32,equalizer=f=95:t=q:w=0.85:g=-2.7") &&
-                front.Contains("volume=0.75,asplit=2[bL][bR]"),
+                front.Contains(",asplit=2[bL][bR]") &&
+                Graph(0,0,0,75,55).Contains("volume=0.75,asplit=2[bL][bR]"),
                 "bass stem must be anti-boom filtered before spatial convolution");
         Require(front.Contains("[vhSLL][irHaloSLL]") &&
                 front.Contains("[vhUBL][irHaloUBL]") &&
