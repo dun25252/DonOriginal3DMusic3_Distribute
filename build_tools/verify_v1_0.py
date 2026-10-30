@@ -16,7 +16,7 @@ NEEDED = {
     "licenses/ht-demucs_license.txt",
     "licenses/demucs-onnx_license.txt",
 }
-for d in ["F", "B"]:
+for d in ["F", "B", "UF", "UB", "DF"]:
     for e in ["L", "R"]:
         NEEDED.add(f"assets/brir/iosr_{d}_room_{e}.wav")
 for side in ("sideL", "sideR"):
